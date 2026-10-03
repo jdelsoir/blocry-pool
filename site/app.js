@@ -48,7 +48,7 @@ const I18N = {
     sameSetup: 'Même configuration pendant tout le bloc.',
     suspect: "Chiffre douteux dans l'horaire source",
     legend: 'Plus foncé = plus de couloirs.', legClosed: 'fermé', legChg: 'changement',
-    close: 'Fermer', prev: 'Semaine précédente', next: 'Semaine suivante', nextOpen: 'Prochaines séances',
+    close: 'Fermer', prevSlot: 'Créneau précédent', nextSlot: 'Créneau suivant', prev: 'Semaine précédente', next: 'Semaine suivante', nextOpen: 'Prochaines séances',
     pickDay: 'Choisir un jour',
     notPublished: "Le prochain horaire n'est pas encore publié",
     lastPublished: 'Dernier horaire publié', seeLastWeek: 'Voir la dernière semaine',
@@ -100,7 +100,7 @@ const I18N = {
     sameSetup: 'Same setup for the whole block.',
     suspect: 'Suspicious figure in the source schedule',
     legend: 'Darker = more lanes.', legClosed: 'closed', legChg: 'changeover',
-    close: 'Close', prev: 'Previous week', next: 'Next week', nextOpen: 'Next openings',
+    close: 'Close', prevSlot: 'Previous slot', nextSlot: 'Next slot', prev: 'Previous week', next: 'Next week', nextOpen: 'Next openings',
     pickDay: 'Pick a day',
     notPublished: 'Next schedule not published yet',
     lastPublished: 'Last published schedule', seeLastWeek: 'See the last week',
@@ -753,7 +753,10 @@ function sheetHTML(id) {
     body = title(dLabel(date) + ' · ' + fmt(s.start) + '-' + fmt(s.end)) + bigHTML(s.l25, s.l50) + planHTML(s.l25, s.l50) + notesHTML(s) + '<div class="sub">' + t.sameSetup + '</div>' +
       (isPast(date, s) ? '' : '<button type="button" class="btn cal-add" data-cal="add">' + t.calAdd + '</button>');
   }
-  return '<div class="grab" aria-hidden="true"></div>' + body + closeBtn;
+  /* Prev / next block of the same day, disabled at either end. */
+  const at = s ? s.start : m, to = s ? s.end : m + 30, pv = blocks.filter((x) => x.end <= at).pop(), nx = blocks.find((x) => x.start >= to);
+  const nav = (b, dir, lab, ch) => '<button type="button" class="icon-btn" data-snav="' + dir + '"' + (b ? ' data-to="' + date + '|' + b.start + '"' : ' disabled') + ' aria-label="' + lab + '">' + ch + '</button>';
+  return '<div class="grab" aria-hidden="true"></div>' + body + '<div class="sfoot"><div class="snav">' + nav(pv, 'prev', t.prevSlot, '‹') + nav(nx, 'next', t.nextSlot, '›') + '</div>' + closeBtn + '</div>';
 }
 
 /* shell */
@@ -853,6 +856,18 @@ function openSheet(id, btn) {
   const close = sheet.querySelector('.close');
   if (close) close.focus({ preventScroll: true });
 }
+/* Move the open sheet to another cell of the same day, keeping focus on the arrow used. */
+function stepSheet(dir) {
+  const b = sheet.querySelector('[data-snav="' + dir + '"]');
+  if (!b || b.disabled) return;
+  S.cell = b.dataset.to;
+  main.querySelectorAll('.c.sel').forEach((c) => c.classList.remove('sel'));
+  const c = main.querySelector('[data-cell="' + S.cell + '"]');
+  if (c) c.classList.add('sel');
+  renderSheet();
+  const f = sheet.querySelector('[data-snav="' + dir + '"]:not(:disabled)') || sheet.querySelector('[data-snav]:not(:disabled)') || sheet.querySelector('.close');
+  if (f) f.focus({ preventScroll: true });
+}
 function closeSheet() {
   S.cell = null;
   main.querySelectorAll('.c.sel').forEach((c) => c.classList.remove('sel'));
@@ -870,6 +885,7 @@ document.addEventListener('click', (e) => {
   if (d.retry) { load(); return; }
   if (d.close) { closeSheet(); return; }
   if (d.cell) { openSheet(d.cell, b); return; }
+  if (d.snav) { stepSheet(d.snav); return; }
   if (d.cal) { calAction(d.cal); return; }
   if (d.caldur && S.calForm) { const f = S.calForm; f.dur = f.span = +d.caldur; f.done = false; calSetEnd(f); calPrefs(); calSync(); return; }
   if (d.calalarm && S.calForm) { S.calForm.alarmMin = +d.calalarm; S.calForm.done = false; calPrefs(); calSync(); return; }
@@ -917,6 +933,7 @@ document.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (!S.cell) return;
   if (e.key === 'Escape') { closeSheet(); return; }
+  if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !S.calForm && !/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) { e.preventDefault(); stepSheet(e.key === 'ArrowLeft' ? 'prev' : 'next'); return; }
   if (e.key === 'Tab') {
     /* Fallback trap for browsers without inert support. */
     const f = Array.from(sheet.querySelectorAll('button, a[href], input, [tabindex]:not([tabindex="-1"])')).filter((x) => !x.disabled);
