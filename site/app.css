@@ -124,13 +124,16 @@ a{color:var(--c50ink)}
 .pill.pause{background:color-mix(in oklab,var(--now) 18%,transparent);color:var(--nowink)}
 .pill.closed{background:var(--surface);color:var(--muted)}
 .now-time{font-size:.85rem;color:var(--muted);font-variant-numeric:tabular-nums}
-.big{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.big .cell{border-radius:6px;padding:8px 12px;background:var(--surface);min-width:0}
-.big .n{font:600 3.1rem/.85 var(--num);padding-top:.12em;font-variant-numeric:tabular-nums}
-.big .u{font-size:.78rem;color:var(--muted);font-weight:700}
-.big .c25 .n{color:var(--c25ink)}
-.big .c50 .n{color:var(--c50ink)}
-.big .cell.zero .n{color:var(--muted);opacity:.5}
+/* lane banners: swimmer photo under a lane-color veil, white text */
+.big{display:grid;gap:8px}
+.ban{position:relative;height:92px;border-radius:8px;overflow:hidden;color:#fff;background:center 30%/cover no-repeat;isolation:isolate}
+.ban::before{content:"";position:absolute;inset:0;z-index:-1;opacity:.72}
+.ban.b50{background-image:url(img/swim50.jpg)}.ban.b50::before{background:#1C7FB4}
+.ban.b25{background-image:url(img/swim25.jpg)}.ban.b25::before{background:#A8245E}
+.ban .h{position:absolute;left:14px;top:10px;display:flex;align-items:baseline;gap:8px}
+.ban .n{font:600 3.75rem/.85 var(--num);padding-top:.1em;font-variant-numeric:tabular-nums}
+.ban .u{font-size:.82rem;font-weight:700}
+.ban .d{position:absolute;right:14px;bottom:4px;font:600 2.5rem/1 var(--num)}
 .now-foot{font-size:.86rem;color:var(--muted)}
 .now-foot b{color:var(--ink)}
 .state-card{margin:14px 16px 12px;background:var(--sunk);border-bottom:3px solid var(--c50);border-radius:6px;padding:18px 16px;display:grid;gap:8px}

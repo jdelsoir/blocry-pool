@@ -28,7 +28,7 @@ const I18N = {
     days: ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'],
     months: ['janv', 'févr', 'mars', 'avr', 'mai', 'juin', 'juil', 'août', 'sept', 'oct', 'nov', 'déc'],
     agenda: 'Agenda', week: 'Semaine', menu: 'Menu', lang: 'Langue', loading: 'Chargement...',
-    open: 'Ouvert', closed: 'Fermé', pause: 'Pause', lanes: 'couloirs',
+    open: 'Ouvert', closed: 'Fermé', pause: 'Pause', lanes: 'couloirs', lane: 'couloir',
     setupUntil: "Cette configuration jusqu'à", poolUntil: "piscine ouverte jusqu'à",
     opensAt: "Prochaine ouverture aujourd'hui à", reopensAt: 'Reprise à',
     noSession: "Plus de séance aujourd'hui.", noToday: "Pas d'horaire publié pour aujourd'hui.",
@@ -80,7 +80,7 @@ const I18N = {
     days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
     months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
     agenda: 'Agenda', week: 'Week', menu: 'Menu', lang: 'Language', loading: 'Loading...',
-    open: 'Open now', closed: 'Closed now', pause: 'Pause', lanes: 'lanes',
+    open: 'Open now', closed: 'Closed now', pause: 'Pause', lanes: 'lanes', lane: 'lane',
     setupUntil: 'This setup until', poolUntil: 'pool open until',
     opensAt: 'Next opening today at', reopensAt: 'Swimming resumes at',
     noSession: 'No more sessions today.', noToday: 'No schedule published for today.',
@@ -372,8 +372,11 @@ function planHTML(l25, l50) {
   const cap = [r50 ? r50 + ' × 50m' : '', n25 ? n25 + ' × 25m' : ''].filter(Boolean).join(' · ');
   return '<div class="plan" aria-hidden="true">' + rows + '</div><div class="plan-cap"><span>' + T().plan + '</span><span>' + cap + '</span></div>';
 }
-const bigHTML = (a, b) => '<div class="big"><div class="cell c25' + (a ? '' : ' zero') + '"><div class="n">' + (a || '-') + '</div><div class="u">' + T().lanes + ' · 25m</div></div>' +
-  '<div class="cell c50' + (b ? '' : ' zero') + '"><div class="n">' + (b || '-') + '</div><div class="u">' + T().lanes + ' · 50m</div></div></div>';
+/* Lane banners, 50m first; a length with no lane gets no banner. */
+const bigHTML = (a, b) => {
+  const ban = (n, len) => '<div class="ban b' + len + '"><div class="h"><span class="n">' + n + '</span><span class="u">' + (n === 1 ? T().lane : T().lanes) + '</span></div><div class="d">' + len + 'm</div></div>';
+  return a || b ? '<div class="big">' + (b ? ban(b, 50) : '') + (a ? ban(a, 25) : '') + '</div>' : '';
+};
 const lenLabel = (v) => (v === '25' ? T().len25 : v === '50' ? T().len50 : T().lenAny);
 const notesHTML = (blk) => blk.notes.map((n) => '<div class="note">' + esc(n) + '</div>').join('') + (blk.suspect ? '<div class="suspect">' + T().suspect + '</div>' : '');
 
