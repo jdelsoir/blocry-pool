@@ -28,7 +28,7 @@ const I18N = {
     days: ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'],
     months: ['janv', 'févr', 'mars', 'avr', 'mai', 'juin', 'juil', 'août', 'sept', 'oct', 'nov', 'déc'],
     agenda: 'Agenda', week: 'Semaine', menu: 'Menu', lang: 'Langue', loading: 'Chargement...',
-    open: 'Ouvert', closed: 'Fermé', pause: 'Pause', lanes: 'couloirs', lane: 'couloir',
+    open: 'Ouvert', closed: 'Fermé', pause: 'Pause', lanes: 'couloirs', lane: 'couloir', closedBan: 'Fermé',
     setupUntil: "Cette configuration jusqu'à", poolUntil: "piscine ouverte jusqu'à",
     opensAt: "Prochaine ouverture aujourd'hui à", reopensAt: 'Reprise à',
     noSession: "Plus de séance aujourd'hui.", noToday: "Pas d'horaire publié pour aujourd'hui.",
@@ -80,7 +80,7 @@ const I18N = {
     days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
     months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
     agenda: 'Agenda', week: 'Week', menu: 'Menu', lang: 'Language', loading: 'Loading...',
-    open: 'Open now', closed: 'Closed now', pause: 'Pause', lanes: 'lanes', lane: 'lane',
+    open: 'Open now', closed: 'Closed now', pause: 'Pause', lanes: 'lanes', lane: 'lane', closedBan: 'Closed',
     setupUntil: 'This setup until', poolUntil: 'pool open until',
     opensAt: 'Next opening today at', reopensAt: 'Swimming resumes at',
     noSession: 'No more sessions today.', noToday: 'No schedule published for today.',
@@ -376,6 +376,8 @@ const bigHTML = (a, b) => {
   const ban = (n, len) => '<div class="ban b' + len + '"><div class="h"><span class="n">' + n + '</span><span class="u">' + (n === 1 ? T().lane : T().lanes) + '</span></div><div class="d">' + len + 'm</div></div>';
   return a || b ? '<div class="big">' + (b ? ban(b, 50) : '') + (a ? ban(a, 25) : '') + '</div>' : '';
 };
+/* Red banner over the pool exterior when the pool is closed. */
+const closedBanHTML = () => '<div class="big"><div class="ban bclosed"><div class="h"><span class="n">' + T().closedBan + '</span></div></div></div>';
 const lenLabel = (v) => (v === '25' ? T().len25 : v === '50' ? T().len50 : T().lenAny);
 const notesHTML = (blk) => blk.notes.map((n) => '<div class="note">' + esc(n) + '</div>').join('') + (blk.suspect ? '<div class="suspect">' + T().suspect + '</div>' : '');
 
@@ -436,8 +438,8 @@ function nowCardHTML() {
       else if (cur && cur.kind === 'closed') foot = esc(closedText(cur.text)) + (later ? '. ' + t.opensAt + ' <b>' + fmt(later.start) + '</b>' : '');
       else if (later) foot = t.opensAt + ' <b>' + fmt(later.start) + '</b>.';
       else foot = dayHasOpen(tday) ? t.noSession : t.closedDay;
+      body = closedBanHTML();
     }
-    body = bigHTML(0, 0);
   }
   return '<section class="now-card" aria-label="' + t.now + '"><div class="now-top">' + pill + time + '</div>' + body + '<div class="now-foot">' + foot + '</div></section>';
 }
@@ -739,8 +741,8 @@ function sheetHTML(id) {
   if (S.calForm && S.calForm.date === date) return '<div class="grab" aria-hidden="true"></div>' + calFormHTML(S.calForm) + closeBtn;
   let body;
   const title = (txt) => '<h2 id="sheet-title">' + txt + '</h2>';
-  if (!s) body = title(dLabel(date) + ' · ' + fmt(m)) + '<div class="sub">' + (dayClosedNote(day) ? esc(closedText(dayClosedNote(day))) : t.closedAt) + '</div>';
-  else if (s.kind === 'closed') body = title(dLabel(date) + ' · ' + fmt(s.start) + '-' + fmt(s.end)) + '<div class="sub">' + esc(closedText(s.text)) + '</div>';
+  if (!s) body = title(dLabel(date) + ' · ' + fmt(m)) + closedBanHTML() + '<div class="sub">' + (dayClosedNote(day) ? esc(closedText(dayClosedNote(day))) : t.closedAt) + '</div>';
+  else if (s.kind === 'closed') body = title(dLabel(date) + ' · ' + fmt(s.start) + '-' + fmt(s.end)) + closedBanHTML() + '<div class="sub">' + esc(closedText(s.text)) + '</div>';
   else if (s.kind === 'change') {
     const r = changeRange(s.text);
     body = title(dLabel(date) + ' · ' + t.pause + ' ' + (r || fmt(s.start) + '-' + fmt(s.end))) + '<div class="sub">' + esc(changeText(s.text)) + '. ' + t.pauseLong + '</div>';

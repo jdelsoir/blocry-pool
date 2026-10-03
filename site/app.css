@@ -126,10 +126,12 @@ a{color:var(--c50ink)}
 .now-time{font-size:.85rem;color:var(--muted);font-variant-numeric:tabular-nums}
 /* lane banners: swimmer photo under a lane-color veil, white text */
 .big{display:grid;gap:8px}
-.ban{position:relative;height:92px;border-radius:8px;overflow:hidden;color:#fff;background:center 30%/cover no-repeat;isolation:isolate}
-.ban::before{content:"";position:absolute;inset:0;z-index:-1;opacity:.72}
+.ban{position:relative;height:92px;border-radius:8px;overflow:hidden;color:#fff;background:center/cover no-repeat;isolation:isolate}
+.ban::before{content:"";position:absolute;inset:0;z-index:-1;opacity:.62}
 .ban.b50{background-image:url(img/swim50.jpg)}.ban.b50::before{background:#1C7FB4}
 .ban.b25{background-image:url(img/swim25.jpg)}.ban.b25::before{background:#A8245E}
+.ban.bclosed{background-image:url(img/pool-closed.jpg)}.ban.bclosed::before{background:#B3261E}
+.ban.bclosed .n{text-transform:uppercase}
 .ban .h{position:absolute;left:14px;top:10px;display:flex;align-items:baseline;gap:8px}
 .ban .n{font:600 3.75rem/.85 var(--num);padding-top:.1em;font-variant-numeric:tabular-nums}
 .ban .u{font-size:.82rem;font-weight:700}
