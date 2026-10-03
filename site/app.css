@@ -242,6 +242,30 @@ a{color:var(--c50ink)}
 .bsheet .sub{font-size:.86rem;color:var(--muted)}
 .bsheet .close{justify-self:end;border:1px solid var(--line);background:var(--sunk);border-radius:10px;padding:8px 18px;font-weight:700;font-size:.88rem;min-height:44px}
 
+/* add to calendar (sheet form) */
+.btn:disabled,.chip:disabled{opacity:.45;cursor:default}
+.btn-main{background:var(--c50);color:#14181B}
+.bsheet .cal-add{justify-self:stretch;min-height:44px}
+.cal-times{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.cal-f,.cal-k{font-size:.74rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.cal-f{display:grid;gap:3px;min-width:0}
+.cal-f input{font:600 1.5rem/1 var(--num);color:var(--ink);background:var(--sunk);border:1px solid var(--line);border-radius:6px;padding:6px 10px 4px;min-height:44px;width:100%;min-width:0;font-variant-numeric:tabular-nums}
+.cal-f input:focus-visible,.cal-check input:focus-visible{outline:2px solid var(--c50);outline-offset:2px}
+.cal-row{display:grid;gap:6px}
+.cal-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.cal-chips .chip{min-height:44px;min-width:44px}
+.cal-check{display:flex;align-items:center;gap:10px;min-height:44px;font-weight:700;color:var(--ink);cursor:pointer}
+.cal-check input{width:22px;height:22px;margin:0;accent-color:var(--c50);flex:none}
+.cal-warn{display:grid;gap:2px;font-size:.84rem;color:var(--warn);background:var(--warnbg);border-radius:6px;padding:8px 10px;overflow-wrap:anywhere}
+.cal-warn[hidden],.cal-err[hidden]{display:none}
+.cal-err{font-size:.84rem;font-weight:700;color:var(--c25ink)}
+.cal-actions{display:flex;flex-wrap:wrap;gap:8px}
+.cal-actions .btn{min-height:44px;flex:1 1 auto}
+.cal-gcal{display:inline-flex;align-items:center;min-height:44px;font-size:.86rem;font-weight:700;justify-self:start}
+.cal-gcal:not([href]){color:var(--muted);pointer-events:none}
+.cal-done{font-size:.84rem;font-weight:700;color:var(--open)}
+.cal-done:empty{display:none}
+
 @media (prefers-reduced-motion:reduce){
   .bsheet,.fsum .car{transition:none}
   .days{scroll-behavior:auto}

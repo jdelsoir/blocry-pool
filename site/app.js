@@ -68,7 +68,12 @@ const I18N = {
     how: ['Le nombre de couloirs vient du tableau publié par la piscine, relu quatre fois par jour.',
       'Le plan du bassin est indicatif.', 'Les chiffres peuvent changer à court terme.'],
     dataTitle: 'Données', dataUpdated: 'Dernière mise à jour des données', sourceModified: 'Dernière modification du tableau source',
-    codeTitle: 'Code source', codeTxt: 'Le code de cette application est ouvert, sur GitHub.'
+    codeTitle: 'Code source', codeTxt: 'Le code de cette application est ouvert, sur GitHub.',
+    calAdd: 'Ajouter au calendrier', calStart: 'Début', calEnd: 'Fin', calDur: 'Durée', calOpen: 'Ouvert',
+    calAlarm: 'Rappel', calBefore: 'avant', calBack: 'Retour', calOk: "Créer l'événement", calGoogle: 'Ouvrir dans Google Agenda',
+    calWarn: 'Attention, pendant ce créneau', calErrTime: 'Heure invalide.', calErrOrder: 'La fin doit être après le début.',
+    calErrHours: "En dehors des heures d'ouverture", calTitle: 'Natation Blocry', calPool: 'Piscine de Blocry',
+    calCheck: "Vérifiez l'horaire avant de partir, il peut changer.", calDone: 'Événement prêt.'
   },
   en: {
     days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
@@ -114,7 +119,12 @@ const I18N = {
     how: ['Lane counts come from the spreadsheet the pool publishes, refreshed four times a day.',
       'The pool plan is illustrative.', 'Figures can change at short notice.'],
     dataTitle: 'Data', dataUpdated: 'Last data update', sourceModified: 'Source spreadsheet last modified',
-    codeTitle: 'Source code', codeTxt: 'The code of this app is open, on GitHub.'
+    codeTitle: 'Source code', codeTxt: 'The code of this app is open, on GitHub.',
+    calAdd: 'Add to calendar', calStart: 'Start', calEnd: 'End', calDur: 'Duration', calOpen: 'Open',
+    calAlarm: 'Reminder', calBefore: 'before', calBack: 'Back', calOk: 'Create event', calGoogle: 'Open in Google Calendar',
+    calWarn: 'Heads up, during this time', calErrTime: 'Invalid time.', calErrOrder: 'End must be after start.',
+    calErrHours: 'Outside opening hours', calTitle: 'Swim Blocry', calPool: 'Blocry swimming pool',
+    calCheck: 'Check the schedule before leaving, it can change.', calDone: 'Event ready.'
   }
 };
 
@@ -125,6 +135,8 @@ const DAY0 = 420, ROWS = 30, DAYEND = DAY0 + ROWS * 30;
 const SOURCE_URL = 'https://csblocry.be/piscines/';
 const CODE_URL = 'https://github.com/jdelsoir/blocry-pool';
 const MAP_URL = 'https://www.openstreetmap.org/search?query=Route%20de%20Blocry%202%2C%201348%20Louvain-la-Neuve';
+const APP_URL = 'https://jdelsoir.github.io/blocry-pool/';
+const POOL_ADDR = 'Route de Blocry 2, 1348 Louvain-la-Neuve'; /* as published on csblocry.be/piscines */
 const TABS = ['home', 'agenda', 'week', 'about'];
 const THEMES = ['auto', 'light', 'dark'];
 const toMin = (t) => +t.slice(0, 2) * 60 + +t.slice(3, 5);
@@ -136,6 +148,51 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage blocked */ } }
 };
 
+/* calendar export (pure: no DOM, no app state) */
+/* Minutes Europe/Brussels is ahead of UTC at instant ms. */
+function bxlOffset(ms) {
+  const p = {};
+  new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Brussels', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })
+    .formatToParts(new Date(ms)).forEach((x) => { p[x.type] = x.value; });
+  return (Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second) - ms) / 60000;
+}
+/* Brussels wall clock (YYYY-MM-DD + minutes) to a UTC Date, DST aware; device zone without Intl time zones. */
+function bxlToUTC(date, min) {
+  const [y, m, d] = date.split('-').map(Number), wall = Date.UTC(y, m - 1, d, 0, min);
+  try { const t = wall - bxlOffset(wall) * 60000; return new Date(wall - bxlOffset(t) * 60000); } catch (e) { return new Date(y, m - 1, d, 0, min); }
+}
+const icsUTC = (dt) => dt.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+const icsEsc = (s) => String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r\n|\r|\n/g, '\\n');
+/* RFC 5545 folding: lines of at most 75 octets, never splitting a UTF-8 character. */
+function icsFold(line) {
+  let out = '', n = 0;
+  for (const ch of line) {
+    const cp = ch.codePointAt(0), b = cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
+    if (n + b > 75) { out += '\r\n '; n = 1; }
+    out += ch; n += b;
+  }
+  return out;
+}
+const calMin = (v) => (typeof v === 'string' ? +v.slice(0, 2) * 60 + +v.slice(3, 5) : v);
+/* One VEVENT in UTC; start/end are minutes (or HH:MM) of Brussels time on date; alarmMin null = no alarm. */
+function buildICS(o) {
+  const at = (m) => icsUTC(bxlToUTC(o.date, calMin(m)));
+  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Blocry Pool//Unofficial lane schedule//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+    'BEGIN:VEVENT', 'UID:' + o.uid, 'DTSTAMP:' + icsUTC(o.now || new Date()), 'DTSTART:' + at(o.start), 'DTEND:' + at(o.end), 'SUMMARY:' + icsEsc(o.title)];
+  if (o.location) L.push('LOCATION:' + icsEsc(o.location));
+  if (o.description) L.push('DESCRIPTION:' + icsEsc(o.description));
+  if (o.url) L.push('URL:' + o.url);
+  if (o.alarmMin) L.push('BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(o.title), 'TRIGGER:-PT' + o.alarmMin + 'M', 'END:VALARM');
+  L.push('END:VEVENT', 'END:VCALENDAR');
+  return L.map(icsFold).join('\r\n') + '\r\n';
+}
+function gcalURL(o) {
+  const at = (m) => icsUTC(bxlToUTC(o.date, calMin(m))), enc = encodeURIComponent;
+  return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + enc(o.title) + '&dates=' + at(o.start) + '/' + at(o.end) +
+    '&details=' + enc(o.description || '') + '&location=' + enc(o.location || '');
+}
+/* end calendar export */
+
 /* state */
 const saved = store.get('blocry-pool', {});
 const S = {
@@ -144,7 +201,7 @@ const S = {
   theme: readTheme(),
   len: ['any', '25', '50'].includes(saved.len) ? saved.len : 'any',
   band: Object.prototype.hasOwnProperty.call(BANDS, saved.band) ? saved.band : 'all',
-  open: null, day: null, wi: 0, cell: null, scroll: {}
+  open: null, day: null, wi: 0, cell: null, calForm: null, scroll: {}
 };
 const save = () => store.set('blocry-pool', { lang: S.lang, len: S.len, band: S.band });
 const T = () => I18N[S.lang];
@@ -208,10 +265,11 @@ function longDT(iso) {
 }
 
 /* Parse "changement de 8h40 à 9h" into "08:40-09:00". */
-function changeRange(note) {
+function changeMins(note) {
   const m = (note || '').match(/(\d{1,2})\s*[hH:]\s*(\d{2})?\D+?(\d{1,2})\s*[hH:]\s*(\d{2})?/);
-  return m ? fmt(+m[1] * 60 + (+m[2] || 0)) + '-' + fmt(+m[3] * 60 + (+m[4] || 0)) : null;
+  return m ? [+m[1] * 60 + (+m[2] || 0), +m[3] * 60 + (+m[4] || 0)] : null;
 }
+function changeRange(note) { const r = changeMins(note); return r ? fmt(r[0]) + '-' + fmt(r[1]) : null; }
 const sentence = (s) => { s = String(s || '').trim(); return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; };
 /* Day closure notes are often all caps in the source ("FERMÉ SAMEDI ET DIMANCHE"). */
 const calm = (s) => { s = String(s || '').trim(); return s === s.toUpperCase() ? sentence(s.toLowerCase()) : sentence(s); };
@@ -552,9 +610,123 @@ function weekHTML() {
     '</div>' + footHTML();
 }
 
+/* Add to calendar (Semaine sheet). Open hours = first to last half-hour with lanes. */
+const DURS = [30, 45, 60, 90], ALARMS = [15, 30, 60, 120], CAL_KEY = 'blocry-pool-cal';
+function openSpan(day) { const o = sessions(day).filter((s) => s.kind === 'open'); return o.length ? [o[0].start, o[o.length - 1].end] : null; }
+const isPast = (date, s) => date < todayStr || (date === todayStr && s.end <= nowMin);
+/* Earliest bookable start: open hours, and not before now (next 5 min step) on today. */
+const calLo = (f) => (f.date === todayStr ? Math.max(f.open[0], Math.ceil(nowMin / 5) * 5) : f.open[0]);
+const hhmm = (v) => (/^\d{2}:\d{2}$/.test(v || '') ? toMin(v) : null);
+
+function calInit(id) {
+  const date = id.split('|')[0], m = +id.split('|')[1], day = DAYMAP.get(date);
+  const blk = sessions(day).find((x) => x.start <= m && x.end > m), open = openSpan(day), p = store.get(CAL_KEY, {});
+  const start = Math.max(blk.start, calLo({ date, open }));
+  let dur = DURS.includes(p.dur) ? p.dur : 45, end = start + dur;
+  if (end > open[1]) { end = open[1]; dur = DURS.includes(end - start) ? end - start : null; }
+  S.calForm = { date, blk, open, start, end, dur, span: end - start, alarm: p.alarm !== false,
+    alarmMin: ALARMS.includes(p.alarmMin) ? p.alarmMin : 30, done: false,
+    uid: 'blocry-' + date + '-' + fmt(blk.start).replace(':', '') + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) + '@jdelsoir.github.io' };
+}
+function calPrefs() {
+  const f = S.calForm, p = store.get(CAL_KEY, {});
+  store.set(CAL_KEY, { dur: f.dur || p.dur || 45, alarm: f.alarm, alarmMin: f.alarmMin });
+}
+function calError(f) {
+  const t = T();
+  if (f.start == null || f.end == null) return t.calErrTime;
+  if (f.end <= f.start) return t.calErrOrder;
+  const lo = calLo(f);
+  if (f.start < lo || f.end > f.open[1]) return t.calErrHours + ' (' + fmt(lo) + '-' + fmt(f.open[1]) + ').';
+  return '';
+}
+/* Pauses, closures and gaps the chosen range crosses, merged into "HH:MM-HH:MM · text" lines. */
+function calIssues(f) {
+  const day = DAYMAP.get(f.date), out = [];
+  for (let h = Math.floor(f.start / 30) * 30; h < f.end; h += 30) {
+    if (h < f.open[0] || h >= f.open[1]) continue;
+    const ci = cellInfo(day, h);
+    if (ci.kind === 'open') continue;
+    /* A changeover note with its own times ("8h40 à 9h") wins over the half-hour bounds. */
+    const r = ci.kind === 'change' ? changeMins(ci.s.change) : null, from = r ? r[0] : h, to = r ? r[1] : h + 30;
+    if (from >= f.end || to <= f.start) continue;
+    const txt = ci.kind === 'change' ? changeText(ci.s.change) : closedText(ci.s ? ci.s.closed || ci.s.note : null), p = out[out.length - 1];
+    if (p && p.txt === txt && p.to >= from) p.to = Math.max(p.to, to); else out.push({ from, to, txt });
+  }
+  return out.map((x) => fmt(x.from) + '-' + fmt(x.to) + ' · ' + x.txt);
+}
+function calEvent(f) {
+  const t = T(), b = f.blk, notes = [], iss = calIssues(f);
+  const lens = [b.l25 ? b.l25 + ' x 25m' : '', b.l50 ? b.l50 + ' x 50m' : ''].filter(Boolean).join(', ');
+  sessions(DAYMAP.get(f.date)).forEach((s) => { if (s.kind === 'open' && s.start < f.end && s.end > f.start) s.notes.forEach((n) => { if (!notes.includes(n)) notes.push(n); }); });
+  return { date: f.date, start: f.start, end: f.end, alarmMin: f.alarm ? f.alarmMin : null, title: t.calTitle + (lens ? ', ' + lens : ''),
+    location: t.calPool + ', ' + POOL_ADDR + ', ' + t.country, url: APP_URL, uid: f.uid, now: new Date(),
+    description: notes.concat(iss.length ? [t.calWarn + ':'].concat(iss) : [], [t.calCheck, APP_URL]).join('\n') };
+}
+const durTxt = (n) => (n < 60 || n % 60 ? n + ' min' : n / 60 + ' h');
+function calFormHTML(f) {
+  const t = T(), lo = fmt(calLo(f)), hi = fmt(f.open[1]);
+  const tm = (id, lab, v) => '<label class="cal-f" for="' + id + '">' + lab + '<input type="time" id="' + id + '" step="300" min="' + lo + '" max="' + hi + '" value="' + (v != null && v >= 0 && v < 1440 ? fmt(v) : '') + '" required></label>';
+  const chip = (k, v, on) => '<button type="button" class="chip" data-' + k + '="' + v + '" aria-pressed="' + on + '">' + (k === 'caldur' ? v + ' min' : durTxt(v)) + '</button>';
+  return '<h2 id="sheet-title">' + t.calAdd + '</h2><div class="sub">' + dLabel(f.date) + ' · ' + t.calOpen + ' ' + fmt(f.open[0]) + '-' + hi + '</div>' +
+    '<div class="cal-times">' + tm('cal-start', t.calStart, f.start) + tm('cal-end', t.calEnd, f.end) + '</div>' +
+    '<div class="cal-row"><span class="cal-k" id="cal-dur-k">' + t.calDur + '</span><div class="cal-chips" role="group" aria-labelledby="cal-dur-k">' + DURS.map((n) => chip('caldur', n, f.dur === n)).join('') + '</div></div>' +
+    '<div class="cal-row"><label class="cal-check"><input type="checkbox" id="cal-alarm"' + (f.alarm ? ' checked' : '') + '>' + t.calAlarm + '</label>' +
+    '<div class="cal-chips" role="group" aria-label="' + t.calAlarm + '">' + ALARMS.map((n) => chip('calalarm', n, f.alarmMin === n)).join('') + '<span class="cal-k">' + t.calBefore + '</span></div></div>' +
+    '<div class="cal-warn" id="cal-warn" aria-live="polite" hidden></div><div class="cal-err" id="cal-err" aria-live="polite" hidden></div>' +
+    '<div class="cal-actions"><button type="button" class="btn" data-cal="back">' + t.calBack + '</button><button type="button" class="btn btn-main" data-cal="ok">' + t.calOk + '</button></div>' +
+    '<a class="cal-gcal" id="cal-gcal" target="_blank" rel="noopener">' + t.calGoogle + '</a><div class="cal-done" id="cal-done" role="status"></div>';
+}
+/* Refresh the parts of the form that depend on its values, without redrawing (keeps focus and caret). */
+function calSync() {
+  const f = S.calForm, t = T(), q = (s) => sheet.querySelector(s);
+  if (!f || !q('#cal-err')) return;
+  const err = calError(f), iss = err ? [] : calIssues(f), w = q('#cal-warn'), er = q('#cal-err'), g = q('#cal-gcal');
+  sheet.querySelectorAll('[data-caldur]').forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.caldur === f.dur)));
+  sheet.querySelectorAll('[data-calalarm]').forEach((b) => { b.setAttribute('aria-pressed', String(+b.dataset.calalarm === f.alarmMin)); b.disabled = !f.alarm; });
+  w.innerHTML = iss.length ? '<b>' + t.calWarn + '</b>' + iss.map((x) => '<span>' + esc(x) + '</span>').join('') : '';
+  w.hidden = !iss.length;
+  er.textContent = err; er.hidden = !err;
+  q('[data-cal="ok"]').disabled = !!err;
+  if (err) { g.removeAttribute('href'); g.setAttribute('aria-disabled', 'true'); } else { g.href = gcalURL(calEvent(f)); g.removeAttribute('aria-disabled'); }
+  q('#cal-done').textContent = f.done ? t.calDone : '';
+}
+function calSetEnd(f) {
+  if (f.start == null) return;
+  f.end = f.start + f.span;
+  const e = $('cal-end');
+  if (e) e.value = f.end >= 0 && f.end < 1440 ? fmt(f.end) : '';
+}
+/* Share the .ics file where the platform can (phones), else download it. */
+function calDeliver() {
+  const f = S.calForm;
+  if (!f || calError(f)) return;
+  const ev = calEvent(f), ics = buildICS(ev), name = 'blocry-' + f.date + '-' + fmt(f.start).replace(':', '') + '.ics';
+  const done = () => { if (S.calForm === f) { f.done = true; calSync(); } };
+  const download = () => {
+    const url = URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' })), a = document.createElement('a');
+    a.href = url; a.download = name; a.hidden = true;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    done();
+  };
+  calPrefs();
+  let file = null, can = false;
+  try { file = new File([ics], name, { type: 'text/calendar' }); can = !!(navigator.canShare && navigator.share && navigator.canShare({ files: [file] })); } catch (e) { can = false; }
+  if (!can) { download(); return; }
+  navigator.share({ files: [file], title: ev.title }).then(done, (err) => { if (!err || err.name !== 'AbortError') download(); });
+}
+function calAction(a) {
+  if (a === 'ok') { calDeliver(); return; }
+  if (a === 'add') { calInit(S.cell); renderSheet(); const s = $('cal-start'); if (s) s.focus({ preventScroll: true }); return; }
+  if (a === 'back') { S.calForm = null; renderSheet(); const b = sheet.querySelector('[data-cal="add"]'); if (b) b.focus({ preventScroll: true }); }
+}
+
 function sheetHTML(id) {
   const t = T(), date = id.split('|')[0], m = +id.split('|')[1];
   const day = DAYMAP.get(date), blocks = sessions(day), s = blocks.find((x) => x.start <= m && x.end > m);
+  const closeBtn = '<button type="button" class="close" data-close="1">' + t.close + '</button>';
+  if (S.calForm && S.calForm.date === date) return '<div class="grab" aria-hidden="true"></div>' + calFormHTML(S.calForm) + closeBtn;
   let body;
   const title = (txt) => '<h2 id="sheet-title">' + txt + '</h2>';
   if (!s) body = title(dLabel(date) + ' · ' + fmt(m)) + '<div class="sub">' + (dayClosedNote(day) ? esc(closedText(dayClosedNote(day))) : t.closedAt) + '</div>';
@@ -563,9 +735,10 @@ function sheetHTML(id) {
     const r = changeRange(s.text);
     body = title(dLabel(date) + ' · ' + t.pause + ' ' + (r || fmt(s.start) + '-' + fmt(s.end))) + '<div class="sub">' + esc(changeText(s.text)) + '. ' + t.pauseLong + '</div>';
   } else {
-    body = title(dLabel(date) + ' · ' + fmt(s.start) + '-' + fmt(s.end)) + bigHTML(s.l25, s.l50) + planHTML(s.l25, s.l50) + notesHTML(s) + '<div class="sub">' + t.sameSetup + '</div>';
+    body = title(dLabel(date) + ' · ' + fmt(s.start) + '-' + fmt(s.end)) + bigHTML(s.l25, s.l50) + planHTML(s.l25, s.l50) + notesHTML(s) + '<div class="sub">' + t.sameSetup + '</div>' +
+      (isPast(date, s) ? '' : '<button type="button" class="btn cal-add" data-cal="add">' + t.calAdd + '</button>');
   }
-  return '<div class="grab" aria-hidden="true"></div>' + body + '<button type="button" class="close" data-close="1">' + t.close + '</button>';
+  return '<div class="grab" aria-hidden="true"></div>' + body + closeBtn;
 }
 
 /* shell */
@@ -644,7 +817,8 @@ function placeNow() {
 
 function renderSheet() {
   const show = S.tab === 'week' && !!S.cell && !!DATA;
-  if (show) { sheet.innerHTML = sheetHTML(S.cell); applyStyles(sheet); }
+  if (!show) S.calForm = null;
+  if (show) { sheet.innerHTML = sheetHTML(S.cell); applyStyles(sheet); calSync(); }
   sheet.hidden = !show;
   scrim.hidden = !show;
   /* aria-modal dialog: keep keyboard and screen reader focus inside the sheet. */
@@ -656,7 +830,7 @@ function renderSheet() {
 }
 function openSheet(id, btn) {
   lastFocus = btn || document.activeElement;
-  S.cell = id;
+  S.cell = id; S.calForm = null;
   main.querySelectorAll('.c.sel').forEach((c) => c.classList.remove('sel'));
   const c = main.querySelector('[data-cell="' + id + '"]');
   if (c) c.classList.add('sel');
@@ -681,6 +855,9 @@ document.addEventListener('click', (e) => {
   if (d.retry) { load(); return; }
   if (d.close) { closeSheet(); return; }
   if (d.cell) { openSheet(d.cell, b); return; }
+  if (d.cal) { calAction(d.cal); return; }
+  if (d.caldur && S.calForm) { const f = S.calForm; f.dur = f.span = +d.caldur; f.done = false; calSetEnd(f); calPrefs(); calSync(); return; }
+  if (d.calalarm && S.calForm) { S.calForm.alarmMin = +d.calalarm; S.calForm.done = false; calPrefs(); calSync(); return; }
   if (d.cycleTheme) {
     S.theme = THEMES[(THEMES.indexOf(S.theme) + 1) % THEMES.length];
     try { if (S.theme === 'auto') localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, S.theme); } catch (err) { /* storage blocked */ }
@@ -727,7 +904,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { closeSheet(); return; }
   if (e.key === 'Tab') {
     /* Fallback trap for browsers without inert support. */
-    const f = Array.from(sheet.querySelectorAll('button, a[href], [tabindex]:not([tabindex="-1"])')).filter((x) => !x.disabled);
+    const f = Array.from(sheet.querySelectorAll('button, a[href], input, [tabindex]:not([tabindex="-1"])')).filter((x) => !x.disabled);
     if (!f.length) return;
     const first = f[0], last = f[f.length - 1];
     if (!sheet.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
@@ -735,6 +912,20 @@ document.addEventListener('keydown', (e) => {
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
 });
+
+/* Calendar form fields: Start moves End by the current duration, a manual End makes it custom. */
+function calInput(e) {
+  const f = S.calForm, el = e.target;
+  if (!f) return;
+  if (el.id === 'cal-start') { f.start = hhmm(el.value); calSetEnd(f); }
+  else if (el.id === 'cal-end') { f.end = hhmm(el.value); f.dur = null; if (f.start != null && f.end != null) f.span = f.end - f.start; }
+  else if (el.id === 'cal-alarm') { f.alarm = el.checked; calPrefs(); }
+  else return;
+  f.done = false;
+  calSync();
+}
+sheet.addEventListener('input', calInput);
+sheet.addEventListener('change', calInput);
 
 /* Selector that finds the focused control again after main is redrawn (every control carries data-*). */
 function focusSelector(el) {

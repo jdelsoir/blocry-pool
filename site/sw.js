@@ -2,6 +2,7 @@
 // The cache version placeholder below is replaced at deploy time with a content hash so every deploy
 // rotates the cache name and old caches are dropped on activate.
 const CACHE = 'blocry-pool-__CACHE_VERSION__';
+// Shell revision, bumped when app files change so a hand deploy also rotates the worker: 2 (add to calendar).
 const DATA_URL = 'data/schedule.json';
 
 // App shell precached at install. Paths are relative to the SW scope (/blocry-pool/).
