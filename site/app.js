@@ -1,6 +1,26 @@
-/* Blocry Pool, unofficial lane availability app. Vanilla JS, no build step. */
+/* Blocry Pool, unofficial lane availability app. Vanilla JS, no build step.
+   Loaded without defer from <head>: the theme block below runs before first paint,
+   the rest of the app boots once the DOM is parsed. */
 'use strict';
-(function () {
+
+/* Theme: 'light' | 'dark' forced via data-theme on <html>, absent = follow the system. */
+const THEME_KEY = 'blocry-pool-theme';
+const THEME_COLOR = { light: '#FFFFFF', dark: '#1D2327' };
+function readTheme() {
+  try { const v = localStorage.getItem(THEME_KEY); return v === 'light' || v === 'dark' ? v : 'auto'; } catch (e) { return 'auto'; }
+}
+function applyTheme(mode) {
+  const root = document.documentElement;
+  if (mode === 'light' || mode === 'dark') root.setAttribute('data-theme', mode); else root.removeAttribute('data-theme');
+  /* The two theme-color metas carry media queries for Auto; a forced theme pins both to its colour. */
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => {
+    const sys = /dark/.test(m.getAttribute('media') || '') ? 'dark' : 'light';
+    m.setAttribute('content', THEME_COLOR[mode === 'auto' ? sys : mode]);
+  });
+}
+applyTheme(readTheme());
+
+function boot() {
 
 /* i18n */
 const I18N = {
@@ -33,7 +53,22 @@ const I18N = {
     notPublished: "Le prochain horaire n'est pas encore publié",
     lastPublished: 'Dernier horaire publié', seeLastWeek: 'Voir la dernière semaine',
     offline: 'Hors ligne, données du', loadError: "Impossible de charger l'horaire.", retry: 'Réessayer',
-    weekShort: 'Semaine du'
+    weekShort: 'Semaine du',
+    colon: ' : ', home: 'Accueil', about: 'À propos', appName: 'Horaire Piscine Blocry', locale: 'fr-BE',
+    restToday: "Encore aujourd'hui",
+    nextOpening: 'Prochaine ouverture', seeInAgenda: "Voir ce jour dans l'agenda",
+    noNextOpening: 'Aucune autre ouverture dans les semaines publiées.',
+    theme: 'Thème', themeName: { auto: 'automatique', light: 'clair', dark: 'sombre' }, themeNext: 'Appuyer pour passer en',
+    pool_: 'La piscine', country: 'Belgique', phone: 'Téléphone', call: 'Appeler',
+    map: 'Voir sur la carte (OpenStreetMap)', officialSite: 'Site officiel',
+    discTitle: 'Projet personnel, non officiel',
+    disc: "Cette application est un projet personnel, réalisé par passion. Elle n'est ni affiliée, ni approuvée, ni gérée par le Centre sportif de Blocry ou l'UCLouvain.",
+    discCheck: 'Pour les informations officielles, les fermetures et les tarifs, consultez toujours le site officiel.',
+    howTitle: 'Comment ça marche',
+    how: ['Le nombre de couloirs vient du tableau publié par la piscine, relu quatre fois par jour.',
+      'Le plan du bassin est indicatif.', 'Les chiffres peuvent changer à court terme.'],
+    dataTitle: 'Données', dataUpdated: 'Dernière mise à jour des données', sourceModified: 'Dernière modification du tableau source',
+    codeTitle: 'Code source', codeTxt: 'Le code de cette application est ouvert, sur GitHub.'
   },
   en: {
     days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
@@ -64,7 +99,22 @@ const I18N = {
     notPublished: 'Next schedule not published yet',
     lastPublished: 'Last published schedule', seeLastWeek: 'See the last week',
     offline: 'Offline, data from', loadError: 'Could not load the schedule.', retry: 'Retry',
-    weekShort: 'Week of'
+    weekShort: 'Week of',
+    colon: ': ', home: 'Home', about: 'About', appName: 'Blocry Swimming Pool schedule', locale: 'en-GB',
+    restToday: 'Still to come today',
+    nextOpening: 'Next opening', seeInAgenda: 'See this day in Agenda',
+    noNextOpening: 'No other opening in the published weeks.',
+    theme: 'Theme', themeName: { auto: 'auto', light: 'light', dark: 'dark' }, themeNext: 'Tap to switch to',
+    pool_: 'The pool', country: 'Belgium', phone: 'Phone', call: 'Call',
+    map: 'See on the map (OpenStreetMap)', officialSite: 'Official site',
+    discTitle: 'Personal project, unofficial',
+    disc: 'This app is a personal hobby project. It is not affiliated with, endorsed by or run by the Centre sportif de Blocry or UCLouvain.',
+    discCheck: 'For official information, closures and prices, always check the official site.',
+    howTitle: 'How it works',
+    how: ['Lane counts come from the spreadsheet the pool publishes, refreshed four times a day.',
+      'The pool plan is illustrative.', 'Figures can change at short notice.'],
+    dataTitle: 'Data', dataUpdated: 'Last data update', sourceModified: 'Source spreadsheet last modified',
+    codeTitle: 'Source code', codeTxt: 'The code of this app is open, on GitHub.'
   }
 };
 
@@ -73,6 +123,10 @@ const CAP = { l25: 16, l50: 8 };
 const BANDS = { all: [0, 1440], morning: [0, 720], lunch: [720, 840], afternoon: [840, 1080], evening: [1080, 1440] };
 const DAY0 = 420, ROWS = 30, DAYEND = DAY0 + ROWS * 30;
 const SOURCE_URL = 'https://csblocry.be/piscines/';
+const CODE_URL = 'https://github.com/jdelsoir/blocry-pool';
+const MAP_URL = 'https://www.openstreetmap.org/search?query=Route%20de%20Blocry%202%2C%201348%20Louvain-la-Neuve';
+const TABS = ['home', 'agenda', 'week', 'about'];
+const THEMES = ['auto', 'light', 'dark'];
 const toMin = (t) => +t.slice(0, 2) * 60 + +t.slice(3, 5);
 const fmt = (m) => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
 const parseD = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
@@ -86,12 +140,13 @@ const store = {
 const saved = store.get('blocry-pool', {});
 const S = {
   lang: saved.lang === 'fr' || saved.lang === 'en' ? saved.lang : ((navigator.language || 'fr').toLowerCase().startsWith('fr') ? 'fr' : 'en'),
-  tab: saved.tab === 'week' ? 'week' : 'agenda',
+  tab: 'home', /* the app always opens on Home */
+  theme: readTheme(),
   len: ['any', '25', '50'].includes(saved.len) ? saved.len : 'any',
   band: Object.prototype.hasOwnProperty.call(BANDS, saved.band) ? saved.band : 'all',
-  open: null, day: null, wi: 0, cell: null, scroll: { agenda: 0, week: 0 }
+  open: null, day: null, wi: 0, cell: null, scroll: {}
 };
-const save = () => store.set('blocry-pool', { lang: S.lang, tab: S.tab, len: S.len, band: S.band });
+const save = () => store.set('blocry-pool', { lang: S.lang, len: S.len, band: S.band });
 const T = () => I18N[S.lang];
 
 let DATA = null, WEEKS = [], DAYS = [], DAYMAP = new Map(), OFFLINE = false, LOAD_ERROR = false;
@@ -123,7 +178,8 @@ const dShort = (s) => { const d = parseD(s); return T().days[d.getDay()] + ' ' +
 function relTime(iso) {
   const t = Date.parse(iso);
   if (!isFinite(t)) return '';
-  const sec = Math.round((t - Date.now()) / 1000);
+  // Clamp to the past: a device clock running behind must not show "in 1 hour".
+  const sec = Math.min(0, Math.round((t - Date.now()) / 1000));
   const a = Math.abs(sec);
   if (a < 60) return T().justNow;
   let rtf;
@@ -137,6 +193,18 @@ function absTime(iso) {
   if (isNaN(t)) return '';
   const ds = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
   return dLabel(ds) + ' ' + fmt(t.getHours() * 60 + t.getMinutes());
+}
+/* "Samedi 3 octobre 2026" for a YYYY-MM-DD string. */
+function longDate(s) {
+  try { return sentence(new Intl.DateTimeFormat(T().locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(parseD(s))); } catch (e) { return dLabel(s); }
+}
+/* Full localized date and time of an ISO instant, in the pool's zone. */
+function longDT(iso) {
+  const t = new Date(iso);
+  if (isNaN(t)) return '';
+  const o = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' };
+  try { return sentence(new Intl.DateTimeFormat(T().locale, Object.assign({ timeZone: 'Europe/Brussels' }, o)).format(t)); } catch (e) { /* no tz data */ }
+  try { return sentence(new Intl.DateTimeFormat(T().locale, o).format(t)); } catch (e) { return absTime(iso); }
 }
 
 /* Parse "changement de 8h40 à 9h" into "08:40-09:00". */
@@ -259,7 +327,20 @@ function offlineHTML() {
   return '<div class="banner" role="status">' + T().offline + ' ' + esc(absTime(DATA.generatedAt)) + '</div>';
 }
 
-/* Agenda */
+/* Session list shared by Home and Agenda: merged blocks, pauses, closures, notes, suspect flags. */
+const barHTML = (cls, label, n, cap) => '<div class="bar ' + cls + '"><span>' + label + '</span><div class="track"><div class="fill" data-w="' + Math.min(100, (n / cap) * 100).toFixed(1) + '"></div></div><span class="v">' + n + '</span></div>';
+function sessListHTML(vs, date) {
+  const t = T();
+  return '<ol class="list">' + vs.map((s) => {
+    if (s.kind === 'change') return '<li class="change">' + esc(changeText(s.text)) + '</li>';
+    if (s.kind === 'closed') return '<li class="closure">' + fmt(s.start) + ' · ' + esc(closedText(s.text)) + '</li>';
+    const live = date === todayStr && s.start <= nowMin && s.end > nowMin;
+    return '<li class="sess' + (live ? ' live' : '') + '"' + (live ? ' aria-current="time"' : '') + '><div><div class="t1">' + fmt(s.start) + '</div><div class="t2">' + t.to + ' ' + fmt(s.end) + '</div></div>' +
+      '<div class="bars">' + (s.l25 ? barHTML('b25', '25m', s.l25, CAP.l25) : '') + (s.l50 ? barHTML('b50', '50m', s.l50, CAP.l50) : '') + '</div>' + notesHTML(s) + '</li>';
+  }).join('') + '</ol>';
+}
+
+/* Now card (Home) */
 function nowCardHTML() {
   const t = T();
   const first = DAYS[0].date;
@@ -305,6 +386,68 @@ function notPublishedHTML() {
     '<button type="button" class="btn" data-tab="week" data-wjump="last">' + t.seeLastWeek + '</button></section>';
 }
 
+/* Home: today at a glance */
+function heroHTML() {
+  const t = T();
+  return '<header class="hero"><h2 class="hero-t">' + t.appName + '</h2><p class="hero-d">' + esc(longDate(todayStr)) + '</p></header>';
+}
+
+/* Today's blocks from now on: the one in progress counts; pauses and closures only next to a session. */
+function remainingToday(day) {
+  const vs = visible(day, 'any', 'all').filter((s) => s.end > nowMin);
+  const touches = (o, s) => o && o.kind === 'open' && (o.end === s.start || o.start === s.end);
+  return vs.filter((s, i) => s.kind === 'open' || touches(vs[i - 1], s) || touches(vs[i + 1], s));
+}
+
+function nextOpeningHTML() {
+  const t = T(), nx = nextOpenings(1, 'any', 'all')[0];
+  if (!nx) return '<section class="state-card next-card"><h2>' + t.nextOpening + '</h2><p>' + t.noNextOpening + '</p></section>';
+  return '<section class="state-card next-card"><h2>' + t.nextOpening + '</h2>' +
+    '<p class="nx-when"><b>' + esc(longDate(nx.date)) + '</b><span class="nx-h">' + fmt(nx.start) + '-' + fmt(nx.end) + '</span></p>' +
+    '<p class="nx-l">' + lanesTxt(nx) + '</p>' +
+    '<button type="button" class="btn" data-tab="agenda" data-dayjump="' + nx.date + '">' + t.seeInAgenda + '</button></section>';
+}
+
+function homeHTML() {
+  const t = T();
+  const first = DAYS[0].date, last = DAYS[DAYS.length - 1].date;
+  if (todayStr > last) return offlineHTML() + heroHTML() + notPublishedHTML() + footHTML();
+  const tday = DAYMAP.get(todayStr);
+  let rest = '';
+  if (tday && todayStr >= first) {
+    const vs = remainingToday(tday);
+    if (vs.some((s) => s.kind === 'open')) rest = '<h2 class="h2">' + t.restToday + '</h2>' + sessListHTML(vs, todayStr);
+    else rest = nextOpeningHTML(); /* the now card above already says the day is over or closed */
+  } else rest = nextOpeningHTML();
+  return offlineHTML() + heroHTML() + nowCardHTML() + rest + footHTML();
+}
+
+/* About */
+function aboutHTML() {
+  const t = T();
+  const row = (k, v) => '<div class="kv"><dt>' + k + '</dt><dd>' + v + '</dd></div>';
+  const ext = (href, txt) => '<a href="' + href + '" target="_blank" rel="noopener">' + txt + '</a>';
+  let data = '';
+  if (DATA) {
+    data = '<h2 class="h2">' + t.dataTitle + '</h2><dl class="about-card kvs">' +
+      (DATA.generatedAt ? row(t.dataUpdated, esc(longDT(DATA.generatedAt)) + (relTime(DATA.generatedAt) ? ' <span class="muted-i">(' + esc(relTime(DATA.generatedAt)) + ')</span>' : '')) : '') +
+      (DATA.source && DATA.source.lastModified ? row(t.sourceModified, esc(longDT(DATA.source.lastModified))) : '') +
+      '</dl>';
+  }
+  return offlineHTML() + heroHTML() +
+    '<section class="state-card disc"><h2>' + t.discTitle + '</h2><p>' + t.disc + '</p><p><b>' + t.discCheck + '</b></p>' +
+    '<p>' + ext(SOURCE_URL, t.officialSite + ': csblocry.be') + '</p></section>' +
+    '<h2 class="h2">' + t.pool_ + '</h2>' +
+    '<section class="about-card"><address class="addr">Piscine de Blocry<br>Route de Blocry 2<br>1348 Louvain-la-Neuve<br>' + t.country + '</address>' +
+    '<p class="phone"><span class="k">' + t.phone + '</span> <span class="num">010 48 38 58</span>' +
+    '<a class="btn btn-sm" href="tel:+3210483858">' + t.call + '</a></p>' +
+    '<ul class="links"><li>' + ext(MAP_URL, t.map) + '</li><li>' + ext(SOURCE_URL, t.officialSite + ' (csblocry.be)') + '</li></ul></section>' +
+    '<h2 class="h2">' + t.howTitle + '</h2><ul class="about-card how">' + t.how.map((x) => '<li>' + x + '</li>').join('') + '</ul>' +
+    data +
+    '<h2 class="h2">' + t.codeTitle + '</h2><section class="about-card"><p>' + t.codeTxt + '</p><p>' + ext(CODE_URL, 'github.com/jdelsoir/blocry-pool') + '</p></section>';
+}
+
+/* Agenda */
 function agendaHTML() {
   const t = T();
   const stripDays = DAYS.filter((d) => d.date >= todayStr);
@@ -317,27 +460,17 @@ function agendaHTML() {
   let panel = '';
   if (S.open === 'len') panel = '<div class="fpanel" id="fp-len">' + opt('len', 'any', t.lenAny) + opt('len', '25', t.len25) + opt('len', '50', t.len50) + '</div>';
   if (S.open === 'band') panel = '<div class="fpanel" id="fp-band">' + Object.keys(BANDS).map((k) => opt('band', k, t.band[k])).join('') + '</div>';
-  const bar = (cls, label, n, cap) => '<div class="bar ' + cls + '"><span>' + label + '</span><div class="track"><div class="fill" data-w="' + Math.min(100, (n / cap) * 100).toFixed(1) + '"></div></div><span class="v">' + n + '</span></div>';
-
   let list;
   if (cn) list = '<div class="closed-day">' + esc(closedText(cn)) + '</div>';
   else if (!dayHasOpen(day)) list = '<div class="closed-day">' + t.closedDay + '</div>';
   else if (!vs.some((s) => s.kind === 'open')) list = '<div class="empty-day">' + t.noneDay + '</div>';
-  else {
-    list = '<ol class="list">' + vs.map((s) => {
-      if (s.kind === 'change') return '<li class="change">' + esc(changeText(s.text)) + '</li>';
-      if (s.kind === 'closed') return '<li class="closure">' + fmt(s.start) + ' · ' + esc(closedText(s.text)) + '</li>';
-      const live = S.day === todayStr && s.start <= nowMin && s.end > nowMin;
-      return '<li class="sess' + (live ? ' live' : '') + '"' + (live ? ' aria-current="time"' : '') + '><div><div class="t1">' + fmt(s.start) + '</div><div class="t2">' + t.to + ' ' + fmt(s.end) + '</div></div>' +
-        '<div class="bars">' + (s.l25 ? bar('b25', '25m', s.l25, CAP.l25) : '') + (s.l50 ? bar('b50', '50m', s.l50, CAP.l50) : '') + '</div>' + notesHTML(s) + '</li>';
-    }).join('') + '</ol>';
-  }
+  else list = sessListHTML(vs, S.day);
 
   const nextTxt = nx
     ? t.nextMatch + ': <b>' + (nx.isNow ? t.nowLc : dLabel(nx.date) + ' ' + fmt(nx.start)) + '</b> ' + t.until + ' ' + fmt(nx.end) + ' · ' + lanesPlain(nx)
     : t.noMatch;
 
-  return offlineHTML() + nowCardHTML() +
+  return offlineHTML() +
     '<div class="filters"><div class="fbar">' +
     '<button type="button" class="fsum" data-open="len" aria-expanded="' + (S.open === 'len') + '" aria-controls="fp-len"><span class="k">' + t.pool + '</span><span class="v">' + lenLabel(S.len) + '</span><span class="car" aria-hidden="true">▾</span></button>' +
     '<button type="button" class="fsum" data-open="band" aria-expanded="' + (S.open === 'band') + '" aria-controls="fp-band"><span class="k">' + t.when + '</span><span class="v">' + t.bandShort[S.band] + '</span><span class="car" aria-hidden="true">▾</span></button>' +
@@ -448,15 +581,22 @@ function applyStyles(rootEl) {
 function renderChrome() {
   const t = T();
   document.documentElement.lang = S.lang;
-  $('title').textContent = S.tab === 'agenda' ? t.agenda : t.week;
-  document.title = 'Blocry Pool';
+  $('title').textContent = t[S.tab];
+  document.title = t.appName;
   $('langs').setAttribute('aria-label', t.lang);
+  const tb = $('themebtn');
+  if (tb) {
+    const next = THEMES[(THEMES.indexOf(S.theme) + 1) % THEMES.length];
+    tb.dataset.mode = S.theme;
+    tb.setAttribute('aria-label', t.theme + t.colon + t.themeName[S.theme] + '. ' + t.themeNext + ' ' + t.themeName[next] + '.');
+    tb.title = t.theme + t.colon + t.themeName[S.theme];
+  }
   $('langs').querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.lang === S.lang)));
   $('tabs').setAttribute('aria-label', t.menu);
   $('tabs').querySelectorAll('.tab').forEach((b) => {
     const on = b.dataset.tab === S.tab;
     if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
-    b.querySelector('span').textContent = b.dataset.tab === 'agenda' ? t.agenda : t.week;
+    b.querySelector('span').textContent = t[b.dataset.tab];
   });
 }
 
@@ -464,16 +604,17 @@ function render(opts) {
   opts = opts || {};
   tickNow();
   renderChrome();
-  if (!DATA) {
+  if (!DATA && S.tab !== 'about') {
     main.innerHTML = '<div class="inner">' + (LOAD_ERROR
       ? '<section class="state-card" role="alert"><h2>' + T().loadError + '</h2><button type="button" class="btn" data-retry="1">' + T().retry + '</button></section>' + footHTML()
       : '<div class="loading">' + T().loading + '</div>') + '</div>';
     return;
   }
-  if (todayStr !== wiDate) { wiDate = todayStr; if (!userNavigated) S.wi = defaultWeek(); }
+  if (DATA && todayStr !== wiDate) { wiDate = todayStr; if (!userNavigated) S.wi = defaultWeek(); }
   if (!opts.resetScroll && main.dataset.tab) S.scroll[main.dataset.tab] = main.scrollTop;
   main.dataset.tab = S.tab;
-  main.innerHTML = '<div class="inner">' + (S.tab === 'agenda' ? agendaHTML() : weekHTML()) + '</div>';
+  const html = { home: homeHTML, agenda: agendaHTML, week: weekHTML, about: aboutHTML }[S.tab];
+  main.innerHTML = '<div class="inner">' + html() + '</div>';
   applyStyles(main);
   main.scrollTop = opts.resetScroll ? 0 : (S.scroll[S.tab] || 0);
   if (S.tab === 'agenda') {
@@ -482,7 +623,7 @@ function render(opts) {
       const c = b.parentElement, cr = c.getBoundingClientRect(), br = b.getBoundingClientRect();
       c.scrollLeft = Math.max(0, c.scrollLeft + (br.left - cr.left) - (c.clientWidth - br.width) / 2);
     }
-  } else placeNow();
+  } else if (S.tab === 'week') placeNow();
   renderSheet();
 }
 
@@ -540,10 +681,21 @@ document.addEventListener('click', (e) => {
   if (d.retry) { load(); return; }
   if (d.close) { closeSheet(); return; }
   if (d.cell) { openSheet(d.cell, b); return; }
+  if (d.cycleTheme) {
+    S.theme = THEMES[(THEMES.indexOf(S.theme) + 1) % THEMES.length];
+    try { if (S.theme === 'auto') localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, S.theme); } catch (err) { /* storage blocked */ }
+    applyTheme(S.theme);
+    renderChrome();
+    return;
+  }
   if (d.tab) {
+    if (!TABS.includes(d.tab)) return;
     if (S.tab !== d.tab) { S.scroll[S.tab] = main.scrollTop; }
     S.tab = d.tab; S.open = null; S.cell = null;
     if (d.wjump === 'last') { S.wi = WEEKS.length - 1; userNavigated = true; resetScroll = true; }
+    if (d.dayjump) { S.day = d.dayjump; resetScroll = true; }
+    /* A button inside main is redrawn away: keep keyboard focus in the content. */
+    if (main.contains(b)) focusSel = '#main';
   } else if (d.lang) { S.lang = d.lang; focusSel = '[data-lang="' + d.lang + '"]'; }
   else if (d.open) { S.open = S.open === d.open ? null : d.open; focusSel = '[data-open="' + d.open + '"]'; }
   else if (d.set) {
@@ -589,7 +741,7 @@ function focusSelector(el) {
   if (!el || !main.contains(el) || el === main) return null;
   const d = el.dataset || {};
   if (d.set) return '[data-set="' + d.set + '"][data-val="' + d.val + '"]';
-  for (const k of ['open', 'day', 'wk', 'cell', 'jump', 'wjump', 'retry']) if (d[k]) return '[data-' + k + '="' + d[k] + '"]';
+  for (const k of ['open', 'day', 'wk', 'cell', 'jump', 'wjump', 'dayjump', 'retry']) if (d[k]) return '[data-' + k + '="' + d[k] + '"]';
   return null;
 }
 /* Redraw for a new "now", keeping focus where it was. Skipped while the sheet or a filter panel is open. */
@@ -677,4 +829,6 @@ if ('serviceWorker' in navigator) {
 
 render();
 load();
-})();
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
