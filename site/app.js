@@ -48,7 +48,7 @@ const I18N = {
     sameSetup: 'Même configuration pendant tout le bloc.',
     suspect: "Chiffre douteux dans l'horaire source",
     legend: 'Plus foncé = plus de couloirs.', legClosed: 'fermé', legChg: 'changement',
-    close: 'Fermer', prevSlot: 'Créneau précédent', nextSlot: 'Créneau suivant', prev: 'Semaine précédente', next: 'Semaine suivante', nextOpen: 'Prochaines séances',
+    close: 'Fermer', prevSlot: 'Créneau précédent', nextSlot: 'Créneau suivant', prev: 'Semaine précédente', next: 'Semaine suivante',
     pickDay: 'Choisir un jour',
     notPublished: "Le prochain horaire n'est pas encore publié",
     lastPublished: 'Dernier horaire publié', seeLastWeek: 'Voir la dernière semaine',
@@ -100,7 +100,7 @@ const I18N = {
     sameSetup: 'Same setup for the whole block.',
     suspect: 'Suspicious figure in the source schedule',
     legend: 'Darker = more lanes.', legClosed: 'closed', legChg: 'changeover',
-    close: 'Close', prevSlot: 'Previous slot', nextSlot: 'Next slot', prev: 'Previous week', next: 'Next week', nextOpen: 'Next openings',
+    close: 'Close', prevSlot: 'Previous slot', nextSlot: 'Next slot', prev: 'Previous week', next: 'Next week',
     pickDay: 'Pick a day',
     notPublished: 'Next schedule not published yet',
     lastPublished: 'Last published schedule', seeLastWeek: 'See the last week',
@@ -233,7 +233,6 @@ function tickNow() {
 }
 
 const dLabel = (s) => { const d = parseD(s); return T().days[d.getDay()] + ' ' + d.getDate() + ' ' + T().months[d.getMonth()]; };
-const dShort = (s) => { const d = parseD(s); return T().days[d.getDay()] + ' ' + d.getDate(); };
 
 function relTime(iso) {
   const t = Date.parse(iso);
@@ -570,7 +569,6 @@ function cellInfo(day, m) {
 
 function weekHTML() {
   const t = T(), w = WEEKS[S.wi];
-  const nx = nextOpenings(5, S.len, 'all');
   const pastEnd = todayStr > DAYS[DAYS.length - 1].date;
   let cells = '';
   for (let r = 0; r < ROWS; r++) {
@@ -600,12 +598,6 @@ function weekHTML() {
     '<span class="wk" aria-live="polite">' + label + '</span>' +
     '<button type="button" class="icon-btn" data-wk="1" ' + (S.wi === WEEKS.length - 1 ? 'disabled' : '') + ' aria-label="' + t.next + '">›</button></div>' +
     '</div></div>' +
-    '<h2 class="h2 h2-gap">' + t.nextOpen + '</h2>' +
-    '<div class="nexts" role="group" aria-label="' + t.nextOpen + '">' +
-    (nx.map((o) => {
-      const m = o.isNow ? Math.max(o.start, Math.floor(nowMin / 30) * 30) : o.start;
-      return '<button type="button" class="nx' + (o.isNow ? ' live' : '') + '" data-jump="' + o.date + '|' + m + '"><span class="d">' + (o.isNow ? t.now : dShort(o.date)) + '</span><span class="h">' + fmt(o.start) + '-' + fmt(o.end) + '</span><span class="l">' + lanesTxt(o) + '</span></button>';
-    }).join('') || '<span class="muted">' + (pastEnd ? t.notPublished : t.noMatch) + '</span>') + '</div>' +
     '<div class="grid-wrap">' +
     '<div class="ghead" aria-hidden="true"><div></div>' + w.days.map((d) => { const dd = parseD(d.date); return '<div class="' + (d.date === todayStr ? 'today' : '') + '">' + t.days[dd.getDay()].slice(0, 2) + '<b>' + dd.getDate() + '</b></div>'; }).join('') + '</div>' +
     '<div class="grid" id="bgrid">' + cells + '</div></div>' +
@@ -916,16 +908,7 @@ document.addEventListener('click', (e) => {
   }
   else if (d.day) { S.day = d.day; focusSel = '[data-day="' + d.day + '"]'; }
   else if (d.wk) { S.wi = Math.min(WEEKS.length - 1, Math.max(0, S.wi + +d.wk)); userNavigated = true; S.cell = null; focusSel = '[data-wk="' + d.wk + '"]'; }
-  else if (d.jump) {
-    const [dt, m] = d.jump.split('|');
-    const wi = WEEKS.findIndex((w) => w.days.some((x) => x.date === dt));
-    if (wi >= 0 && wi !== S.wi) { S.wi = wi; userNavigated = true; }
-    save(); render();
-    const c = main.querySelector('[data-cell="' + dt + '|' + m + '"]');
-    if (c) c.scrollIntoView({ block: 'center' });
-    openSheet(dt + '|' + m, c);
-    return;
-  } else return;
+  else return;
   save();
   render({ resetScroll });
   if (focusSel) {

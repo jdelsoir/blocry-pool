@@ -102,7 +102,6 @@ Use the prototype's visual language and logic as the starting point: tokens, fon
   - Footer line: "Horaire mis à jour il y a X" from `generatedAt`, and source link "Source: csblocry.be (non officiel)".
 - **Semaine**:
   - Pool length segmented control (Les deux / 25m / 50m) + week navigation across every week in the data, starting on the current week.
-  - "Next openings" chips (5): only merge back-to-back blocks whose visible lane counts are equal.
   - Heatmap grid 07:00-22:00 x 7 days, 15px rows; cell shade by lanes (cap 16 for 25m, 8 for 50m, values above cap = full shade); both-mode splits the cell in two; hatched = closed; dashed = changeover; orange now-line on today's column.
   - Tapping a cell opens a bottom sheet: date and block time, both counts, pool plan, note/suspect/changeover text, Close button.
   - **Lane banners** (`bigHTML`, Home now card and Semaine sheet): one full-width banner per length, 50m first, only for a length with at least one lane (none when both are 0). Swimmer photo (`site/img/swim50.jpg`, `site/img/swim25.jpg`, 960x300, precached) under a 72% veil of #1C7FB4 (50m) or #A8245E (25m), same in both themes; lane count and "lane(s)" top left, distance bottom right, all white. Photos: 50m "Into the Deep End", U.S. Marine Corps on Flickr (public domain); 25m freestyle swimmer, CC0 via rawpixel.
