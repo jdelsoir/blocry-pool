@@ -1,0 +1,20 @@
+{
+  "name": "Blocry Pool",
+  "short_name": "Blocry Pool",
+  "description": "Couloirs libres à la piscine de Blocry, application non officielle. Lane availability at the Blocry pool, unofficial.",
+  "id": "/blocry-pool/",
+  "start_url": "/blocry-pool/",
+  "scope": "/blocry-pool/",
+  "lang": "fr",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#3CABE1",
+  "background_color": "#F5F6F6",
+  "categories": ["sports", "utilities"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

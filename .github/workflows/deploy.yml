@@ -1,0 +1,226 @@
+# Refresh the schedule from the source workbook, then deploy site/ to GitHub Pages.
+# Settings > Pages > Source must be "GitHub Actions". Repo secret SHEET_URL holds the
+# anonymous share link of the workbook (never hardcoded, never printed).
+name: Update schedule and deploy
+
+on:
+  push:
+    branches: [main]
+  # Four runs a day (UTC). Brussels: 06:17, 11:17, 16:17, 21:17 in summer, one hour
+  # earlier in winter, so the first run always lands before the pool opens at 07:00.
+  # The first line also runs the health check (morning and afternoon).
+  schedule:
+    - cron: "17 4,14 * * *"
+    - cron: "17 9,19 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Serialize runs so two update jobs never race on the data commit.
+concurrency:
+  group: schedule-update-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.result.outputs.sha }}
+      changed: ${{ steps.result.outputs.changed }}
+      fetch_ok: ${{ steps.fetch.outputs.ok }}
+      parse_ok: ${{ steps.parse.outputs.ok }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install parser dependencies
+        run: pip install openpyxl
+
+      - name: Fetch workbook
+        id: fetch
+        env:
+          SHEET_URL: ${{ secrets.SHEET_URL }}
+        run: |
+          if [ -z "${SHEET_URL}" ]; then
+            echo "::warning::SHEET_URL secret is not set, keeping the committed schedule.json"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "::add-mask::${SHEET_URL}"
+          if bash scripts/fetch_schedule.sh "$RUNNER_TEMP/pool.xlsx"; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Workbook download failed, keeping the committed schedule.json"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Parse workbook
+        id: parse
+        if: steps.fetch.outputs.ok == 'true'
+        run: |
+          args=(--in "$RUNNER_TEMP/pool.xlsx" --out "$RUNNER_TEMP/schedule.json")
+          if [ -s "$RUNNER_TEMP/pool.xlsx.last-modified" ]; then
+            args+=(--last-modified "$RUNNER_TEMP/pool.xlsx.last-modified")
+          fi
+          if python scripts/parse_schedule.py "${args[@]}"; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Workbook parse failed, keeping the committed schedule.json"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compare with committed data (ignoring generatedAt)
+        id: diff
+        if: steps.parse.outputs.ok == 'true'
+        run: |
+          python - "$RUNNER_TEMP/schedule.json" site/data/schedule.json <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os, sys
+          new_path, old_path = sys.argv[1], sys.argv[2]
+          def load(p):
+              if not os.path.exists(p):
+                  return None
+              try:
+                  with open(p, encoding="utf-8") as fh:
+                      d = json.load(fh)
+              except ValueError:
+                  return None
+              if isinstance(d, dict):
+                  d.pop("generatedAt", None)
+              return d
+          new = load(new_path)
+          if new is None:
+              print("changed=false")
+              print("::warning::Parser output is not valid JSON, keeping the committed file", file=sys.stderr)
+          else:
+              print("changed=" + ("true" if new != load(old_path) else "false"))
+          PY
+
+      - name: Commit and push updated schedule
+        id: push
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          mkdir -p site/data
+          cp "$RUNNER_TEMP/schedule.json" site/data/schedule.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add site/data/schedule.json
+          git commit -m "data: schedule update"
+          # Pushes made with GITHUB_TOKEN do not trigger new workflow runs, so no loop.
+          for attempt in 1 2 3; do
+            if git push origin "HEAD:${GITHUB_REF}"; then
+              echo "pushed=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "Push rejected (attempt ${attempt}), rebasing on the remote branch"
+            git pull --rebase origin "${GITHUB_REF}" || { git rebase --abort || true; break; }
+          done
+          echo "::warning::Could not push the schedule update, deploying the previous commit"
+          echo "pushed=false" >> "$GITHUB_OUTPUT"
+
+      - name: Report result
+        id: result
+        run: |
+          if [ "${{ steps.push.outputs.pushed }}" = "true" ]; then
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Schedule updated in $(git rev-parse --short HEAD)"
+          elif [ "${{ steps.push.outcome }}" = "success" ]; then
+            # A local data commit could not be pushed: deploy its parent (the checked-out
+            # branch tip, or the remote tip after a rebase), never the unpushed commit.
+            echo "sha=$(git rev-parse HEAD~1)" >> "$GITHUB_OUTPUT"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Schedule update not pushed"
+          else
+            # Deploy the branch tip that was checked out (it may be newer than GITHUB_SHA
+            # when a data commit landed while this run was queued).
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No schedule change committed"
+          fi
+
+  deploy:
+    needs: update
+    # Scheduled runs only redeploy when the data actually changed.
+    if: github.event_name != 'schedule' || needs.update.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The exact commit produced (or kept) by the update job.
+          ref: ${{ needs.update.outputs.sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Stamp service worker cache version
+        run: |
+          python scripts/stamp_cache_version.py site --extra "$(git rev-parse HEAD)"
+          touch site/.nojekyll
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  # Fails on purpose when something needs attention, so GitHub emails the repo owner
+  # (Settings > Notifications > Actions). Also pushes the reason to ntfy when the
+  # NTFY_TOPIC secret is set. Never blocks the deploy.
+  health:
+    needs: update
+    if: always() && (github.event_name == 'workflow_dispatch' || github.event.schedule == '17 4,14 * * *')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.update.outputs.sha || github.sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check schedule pipeline
+        run: |
+          python scripts/health_check.py \
+            --fetch-ok "${{ needs.update.outputs.fetch_ok || 'false' }}" \
+            --parse-ok "${{ needs.update.outputs.parse_ok || 'false' }}" \
+            --report "$RUNNER_TEMP/health.txt"
+
+      - name: Alert on ntfy
+        if: failure()
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: |
+          if [ -z "${NTFY_TOPIC}" ]; then exit 0; fi
+          echo "::add-mask::${NTFY_TOPIC}"
+          body="$(cat "$RUNNER_TEMP/health.txt" 2>/dev/null || echo 'Health check failed, see the Actions log.')"
+          curl -sS --fail -H "Title: Blocry Pool: schedule problem" -H "Priority: high" -H "Tags: warning,swimmer" \
+            -H "Click: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            -d "${body}" "https://ntfy.sh/${NTFY_TOPIC}" > /dev/null
