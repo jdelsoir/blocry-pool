@@ -72,8 +72,9 @@ const I18N = {
     calAdd: 'Ajouter au calendrier', calStart: 'Début', calEnd: 'Fin', calDur: 'Durée', calOpen: 'Ouvert',
     calAlarm: 'Rappel', calBefore: 'avant', calBack: 'Retour', calOk: "Créer l'événement", calGoogle: 'Ouvrir dans Google Agenda',
     calWarn: 'Attention, pendant ce créneau', calErrTime: 'Heure invalide.', calErrOrder: 'La fin doit être après le début.',
-    calErrHours: "En dehors des heures d'ouverture", calTitle: 'Natation Blocry', calPool: 'Piscine de Blocry',
-    calCheck: "Vérifiez l'horaire avant de partir, il peut changer.", calDone: 'Événement prêt.'
+    calErrHours: "En dehors des heures d'ouverture", calTitle: 'Séance de natation', calLanes: 'Couloirs disponibles', calMap: 'Itinéraire', calPool: 'Piscine de Blocry',
+    calCheck: "Vérifiez l'horaire avant de partir, il peut changer.", calDone: 'Événement prêt.',
+    calMotto: ['Chaque longueur compte. Bonne nage !', 'Glisse, respire, avance. Tu vas assurer !', 'Plonge, le meilleur moment de ta journée commence ici.']
   },
   en: {
     days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
@@ -123,8 +124,9 @@ const I18N = {
     calAdd: 'Add to calendar', calStart: 'Start', calEnd: 'End', calDur: 'Duration', calOpen: 'Open',
     calAlarm: 'Reminder', calBefore: 'before', calBack: 'Back', calOk: 'Create event', calGoogle: 'Open in Google Calendar',
     calWarn: 'Heads up, during this time', calErrTime: 'Invalid time.', calErrOrder: 'End must be after start.',
-    calErrHours: 'Outside opening hours', calTitle: 'Swim Blocry', calPool: 'Blocry swimming pool',
-    calCheck: 'Check the schedule before leaving, it can change.', calDone: 'Event ready.'
+    calErrHours: 'Outside opening hours', calTitle: 'Swim Session', calLanes: 'Lanes available', calMap: 'Directions', calPool: 'Blocry swimming pool',
+    calCheck: 'Check the schedule before leaving, it can change.', calDone: 'Event ready.',
+    calMotto: ['Every length counts. Enjoy the water!', "Smooth strokes, steady breath. You've got this!", 'Dive in, the best part of your day starts here.']
   }
 };
 
@@ -137,6 +139,7 @@ const CODE_URL = 'https://github.com/jdelsoir/blocry-pool';
 const MAP_URL = 'https://www.openstreetmap.org/search?query=Route%20de%20Blocry%202%2C%201348%20Louvain-la-Neuve';
 const APP_URL = 'https://jdelsoir.github.io/blocry-pool/';
 const POOL_ADDR = 'Route de Blocry 2, 1348 Louvain-la-Neuve'; /* as published on csblocry.be/piscines */
+const GMAP_URL = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('Piscine de Blocry, ' + POOL_ADDR);
 const TABS = ['home', 'agenda', 'week', 'about'];
 const THEMES = ['auto', 'light', 'dark'];
 const toMin = (t) => +t.slice(0, 2) * 60 + +t.slice(3, 5);
@@ -625,7 +628,7 @@ function calInit(id) {
   let dur = DURS.includes(p.dur) ? p.dur : 45, end = start + dur;
   if (end > open[1]) { end = open[1]; dur = DURS.includes(end - start) ? end - start : null; }
   S.calForm = { date, blk, open, start, end, dur, span: end - start, alarm: p.alarm !== false,
-    alarmMin: ALARMS.includes(p.alarmMin) ? p.alarmMin : 30, done: false,
+    alarmMin: ALARMS.includes(p.alarmMin) ? p.alarmMin : 30, done: false, motto: Math.floor(Math.random() * 3),
     uid: 'blocry-' + date + '-' + fmt(blk.start).replace(':', '') + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) + '@jdelsoir.github.io' };
 }
 function calPrefs() {
@@ -655,13 +658,25 @@ function calIssues(f) {
   }
   return out.map((x) => fmt(x.from) + '-' + fmt(x.to) + ' · ' + x.txt);
 }
+/* Lanes per open half-hour inside the range, equal neighbours merged, clipped to start/end. */
+function calLanes(f) {
+  const day = DAYMAP.get(f.date), out = [];
+  for (let h = Math.floor(f.start / 30) * 30; h < f.end; h += 30) {
+    const ci = cellInfo(day, h);
+    if (ci.kind !== 'open') continue;
+    const from = Math.max(h, f.start), to = Math.min(h + 30, f.end), txt = [ci.s.l25 ? ci.s.l25 + ' x 25m' : '', ci.s.l50 ? ci.s.l50 + ' x 50m' : ''].filter(Boolean).join(', ');
+    const p = out[out.length - 1];
+    if (p && p.txt === txt && p.to === from) p.to = to; else out.push({ from, to, txt });
+  }
+  return out.map((x) => fmt(x.from) + '-' + fmt(x.to) + ' · ' + x.txt);
+}
 function calEvent(f) {
-  const t = T(), b = f.blk, notes = [], iss = calIssues(f);
-  const lens = [b.l25 ? b.l25 + ' x 25m' : '', b.l50 ? b.l50 + ' x 50m' : ''].filter(Boolean).join(', ');
+  const t = T(), notes = [], iss = calIssues(f), lanes = calLanes(f);
   sessions(DAYMAP.get(f.date)).forEach((s) => { if (s.kind === 'open' && s.start < f.end && s.end > f.start) s.notes.forEach((n) => { if (!notes.includes(n)) notes.push(n); }); });
-  return { date: f.date, start: f.start, end: f.end, alarmMin: f.alarm ? f.alarmMin : null, title: t.calTitle + (lens ? ', ' + lens : ''),
+  return { date: f.date, start: f.start, end: f.end, alarmMin: f.alarm ? f.alarmMin : null, title: t.calTitle,
     location: t.calPool + ', ' + POOL_ADDR + ', ' + t.country, url: APP_URL, uid: f.uid, now: new Date(),
-    description: notes.concat(iss.length ? [t.calWarn + ':'].concat(iss) : [], [t.calCheck, APP_URL]).join('\n') };
+    description: (lanes.length ? [t.calLanes + ':'].concat(lanes, ['']) : []).concat(notes, iss.length ? [t.calWarn + ':'].concat(iss) : [],
+      [t.calCheck, APP_URL, t.calMap + ': ' + GMAP_URL, '', t.calMotto[f.motto]]).join('\n') };
 }
 const durTxt = (n) => (n < 60 || n % 60 ? n + ' min' : n / 60 + ' h');
 function calFormHTML(f) {
