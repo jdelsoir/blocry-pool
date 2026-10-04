@@ -171,7 +171,8 @@ a{color:var(--c50ink)}
 .day.today .dw::after{content:" \2022";color:var(--now)}
 .day[aria-pressed="true"].today .dw::after{color:#fff}
 .list{list-style:none;margin:0;padding:0 16px 8px;display:grid;gap:8px}
-.sess{display:grid;grid-template-columns:62px minmax(0,1fr);gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px 12px;align-items:center}
+.sess{display:grid;grid-template-columns:62px minmax(0,1fr);gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px 12px;align-items:center;width:100%;text-align:left}
+.sess:active{background:var(--sunk)}
 .sess.live{border-color:var(--now);box-shadow:inset 3px 0 0 var(--now)}
 .sess .t1{font:600 1.55rem/.9 var(--num);padding-top:.1em;font-variant-numeric:tabular-nums}
 .sess .t2{font-size:.78rem;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}

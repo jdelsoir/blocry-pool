@@ -400,8 +400,10 @@ function sessListHTML(vs, date) {
     if (s.kind === 'change') return '<li class="change">' + esc(changeText(s.text)) + '</li>';
     if (s.kind === 'closed') return '<li class="closure">' + fmt(s.start) + ' · ' + esc(closedText(s.text)) + '</li>';
     const live = date === todayStr && s.start <= nowMin && s.end > nowMin;
-    return '<li class="sess' + (live ? ' live' : '') + '"' + (live ? ' aria-current="time"' : '') + '><div><div class="t1">' + fmt(s.start) + '</div><div class="t2">' + t.to + ' ' + fmt(s.end) + '</div></div>' +
-      '<div class="bars">' + (s.l25 ? barHTML('b25', '25m', s.l25, CAP.l25) : '') + (s.l50 ? barHTML('b50', '50m', s.l50, CAP.l50) : '') + '</div>' + notesHTML(s) + '</li>';
+    /* Opens the slot sheet on the half-hour now running, else on the block start. */
+    const id = date + '|' + (live ? Math.max(s.start, Math.floor(nowMin / 30) * 30) : s.start);
+    return '<li><button type="button" class="sess' + (live ? ' live' : '') + '" data-cell="' + id + '"' + (live ? ' aria-current="time"' : '') + '><div><div class="t1">' + fmt(s.start) + '</div><div class="t2">' + t.to + ' ' + fmt(s.end) + '</div></div>' +
+      '<div class="bars">' + (s.l25 ? barHTML('b25', '25m', s.l25, CAP.l25) : '') + (s.l50 ? barHTML('b50', '50m', s.l50, CAP.l50) : '') + '</div>' + notesHTML(s) + '</button></li>';
   }).join('') + '</ol>';
 }
 
@@ -831,7 +833,7 @@ function placeNow() {
 }
 
 function renderSheet() {
-  const show = S.tab === 'week' && !!S.cell && !!DATA;
+  const show = !!S.cell && !!DATA;
   if (!show) S.calForm = null;
   if (show) { sheet.innerHTML = sheetHTML(S.cell); applyStyles(sheet); calSync(); }
   sheet.hidden = !show;
@@ -952,7 +954,7 @@ function focusSelector(el) {
   if (!el || !main.contains(el) || el === main) return null;
   const d = el.dataset || {};
   if (d.set) return '[data-set="' + d.set + '"][data-val="' + d.val + '"]';
-  for (const k of ['open', 'day', 'wk', 'cell', 'jump', 'wjump', 'dayjump', 'retry']) if (d[k]) return '[data-' + k + '="' + d[k] + '"]';
+  for (const k of ['open', 'day', 'wk', 'cell', 'wjump', 'dayjump', 'retry']) if (d[k]) return '[data-' + k + '="' + d[k] + '"]';
   return null;
 }
 /* Redraw for a new "now", keeping focus where it was. Skipped while the sheet or a filter panel is open. */
