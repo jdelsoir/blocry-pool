@@ -42,7 +42,7 @@ const I18N = {
     pauseLong: "Les sauveteurs demandent de sortir de l'eau pendant le changement.",
     noneDay: 'Aucune séance pour ce filtre ce jour-là.', closedDay: 'Piscine fermée', to: 'à',
     sessionsOf: 'Séances du',
-    updated: 'Horaire mis à jour', justNow: "à l'instant",
+    updated: 'Horaire modifié', justNow: "à l'instant",
     source: 'Source', unofficial: 'non officiel',
     plan: 'Plan indicatif, 25m publics à droite', closedAt: 'Piscine fermée à cette heure.',
     sameSetup: 'Même configuration pendant tout le bloc.',
@@ -67,7 +67,7 @@ const I18N = {
     howTitle: 'Comment ça marche',
     how: ['Le nombre de couloirs vient du tableau publié par la piscine, relu quatre fois par jour.',
       'Le plan du bassin est indicatif.', 'Les chiffres peuvent changer à court terme.'],
-    dataTitle: 'Données', dataUpdated: 'Dernière mise à jour des données', sourceModified: 'Dernière modification du tableau source',
+    dataTitle: 'Données', dataUpdated: 'Dernière modification des données', sourceModified: 'Dernière modification du tableau source',
     codeTitle: 'Code source', codeTxt: 'Le code de cette application est ouvert, sur GitHub.',
     calAdd: 'Ajouter au calendrier', calStart: 'Début', calEnd: 'Fin', calDur: 'Durée', calOpen: 'Ouvert',
     calAlarm: 'Rappel', calBefore: 'avant', calBack: 'Retour', calOk: "Créer l'événement", calGoogle: 'Ouvrir dans Google Agenda',
@@ -94,7 +94,7 @@ const I18N = {
     pauseLong: 'Lifeguards ask swimmers to leave the water during the change.',
     noneDay: 'No session for this filter on that day.', closedDay: 'Pool closed', to: 'to',
     sessionsOf: 'Sessions on',
-    updated: 'Schedule updated', justNow: 'just now',
+    updated: 'Schedule changed', justNow: 'just now',
     source: 'Source', unofficial: 'unofficial',
     plan: 'Illustrative, public 25m on the right', closedAt: 'Pool closed at this time.',
     sameSetup: 'Same setup for the whole block.',
@@ -119,7 +119,7 @@ const I18N = {
     howTitle: 'How it works',
     how: ['Lane counts come from the spreadsheet the pool publishes, refreshed four times a day.',
       'The pool plan is illustrative.', 'Figures can change at short notice.'],
-    dataTitle: 'Data', dataUpdated: 'Last data update', sourceModified: 'Source spreadsheet last modified',
+    dataTitle: 'Data', dataUpdated: 'Last data change', sourceModified: 'Source spreadsheet last modified',
     codeTitle: 'Source code', codeTxt: 'The code of this app is open, on GitHub.',
     calAdd: 'Add to calendar', calStart: 'Start', calEnd: 'End', calDur: 'Duration', calOpen: 'Open',
     calAlarm: 'Reminder', calBefore: 'before', calBack: 'Back', calOk: 'Create event', calGoogle: 'Open in Google Calendar',
@@ -383,7 +383,8 @@ const notesHTML = (blk) => blk.notes.map((n) => '<div class="note">' + esc(n) + 
 
 function footHTML() {
   const t = T();
-  const rel = DATA && DATA.generatedAt ? relTime(DATA.generatedAt) : '';
+  /* When the pool last changed its sheet: data.json is only rewritten on change, so generatedAt would look stale. */
+  const at = DATA && ((DATA.source && DATA.source.lastModified) || DATA.generatedAt), rel = at ? relTime(at) : '';
   return '<div class="foot">' + (rel ? '<span>' + t.updated + ' ' + esc(rel) + '</span>' : '') +
     '<span>' + t.source + ': <a href="' + SOURCE_URL + '" target="_blank" rel="noopener">csblocry.be</a> (' + t.unofficial + ')</span></div>';
 }

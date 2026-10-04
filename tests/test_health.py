@@ -46,3 +46,11 @@ def test_stale_source():
 
 def test_missing_data_file():
     assert check(None, at("2026-10-01T10:00:00+02:00"), True, True)
+
+
+def test_previous_run_gap():
+    d, now = data(["2026-09-28"]), at("2026-10-01T10:00:00+02:00")
+    assert check(d, now, True, True, "2026-09-30T19:20:00Z") == []
+    p = check(d, now, True, True, "2026-09-30T14:20:00Z")
+    assert any("late or skipped" in x for x in p)
+    assert check(d, now, True, True, "not a date") == []

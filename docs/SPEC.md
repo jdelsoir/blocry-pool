@@ -99,7 +99,7 @@ Use the prototype's visual language and logic as the starting point: tokens, fon
   - "Next session" line for the active filters.
   - Horizontal day strip: every day from today to the last published day, each with a 30-tick sparkline of matching half-hours; today marked.
   - Session list for the selected day. Non-matching sessions are REMOVED (not greyed). Bars for a filtered-out length are hidden. Consecutive half-hours with identical visible lane counts merge into one block. Changeover pauses shown only when adjacent to a visible session. Slots with `note` show it. `suspect` slots show a small warning ("Chiffre douteux dans l'horaire source" / "Suspicious figure in the source schedule"). Empty-day and closed-day states.
-  - Footer line: "Horaire mis à jour il y a X" from `generatedAt`, and source link "Source: csblocry.be (non officiel)".
+  - Footer line: "Horaire modifié il y a X" / "Schedule changed X ago" from `source.lastModified` (fallback `generatedAt`, which only moves when the JSON content changes), and source link "Source: csblocry.be (non officiel)".
 - **Semaine**:
   - Pool length segmented control (Les deux / 25m / 50m) + week navigation across every week in the data, starting on the current week.
   - Heatmap grid 07:00-22:00 x 7 days, 15px rows; cell shade by lanes (cap 16 for 25m, 8 for 50m, values above cap = full shade); both-mode splits the cell in two; hatched = closed; dashed = changeover; orange now-line on today's column.
@@ -116,7 +116,7 @@ Use the prototype's visual language and logic as the starting point: tokens, fon
 
 ## CI: `.github/workflows/deploy.yml`
 
-- Triggers: push to `main`, `schedule` four times a day (`17 4,14 * * *` also runs the health job, `17 9,19 * * *`), `workflow_dispatch`.
+- Triggers: push to `main`, `schedule` four times a day (`17 4,14 * * *`, `17 9,19 * * *`), `workflow_dispatch`. The health job runs on every scheduled and manual run; it also reads the previous scheduled run's start time (GitHub API, `actions: read`) and flags a gap over 15 h, since GitHub delays scheduled runs by hours and sometimes skips them. Actions pinned to their Node 24 majors (checkout v7, setup-python v7, configure-pages v6, upload-pages-artifact v5, deploy-pages v5).
 - Job 1 `update`: checkout, setup-python 3.12, `pip install openpyxl`, `scripts/fetch_schedule.sh "$RUNNER_TEMP/pool.xlsx"` with `SHEET_URL: ${{ secrets.SHEET_URL }}`, `python scripts/parse_schedule.py --in ... --out site/data/schedule.json`. If fetch or parse fails, keep the committed file and continue (warning annotation), do not fail the deploy. If the JSON changed ignoring `generatedAt`, commit and push it as `github-actions[bot]` with message `data: schedule update`. Needs `permissions: contents: write`.
 - Job 2 `deploy` (needs update): checkout the updated ref, stamp the SW cache version (skill's `stamp_cache_version.py` logic, inline or copied to `scripts/`), upload `site/` with `actions/upload-pages-artifact`, `actions/deploy-pages`. `permissions: pages: write, id-token: write`, `concurrency: group: pages, cancel-in-progress: false`.
 - `fetch_schedule.sh`: `curl -sSL --fail -A "Mozilla/5.0" -c jar -b jar "$SHEET_URL"` once (sets the anonymous guest cookie), then the same URL with `download=1` appended (`?` or `&` as appropriate, strip any `e=` param is not needed) to the output path; verify the file starts with `PK` (zip). Never print the URL. Print the HTTP `Last-Modified` header if any to a sidecar file the parser can read (`--last-modified`).

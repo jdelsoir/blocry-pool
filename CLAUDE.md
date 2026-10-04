@@ -24,5 +24,5 @@ Serve under the real base path: a temp dir with a `blocry-pool` symlink to `site
 - Never change the manifest `name`, `id`, `start_url` or `scope` again: renaming after install left an Android WebAPK broken ("already installed" + "Could not open app").
 - No em/en dashes and no personal names anywhere (code, UI, docs, commits).
 - Headless Chrome clamps windows narrower than ~500px and does not exit after `--screenshot`: run it in the background and kill it.
-- Cron runs are in UTC (`17 4,14` + `17 9,19`): 06:17 to 21:17 Brussels in summer, one hour earlier in winter. The health job runs only on the `17 4,14` line and manual runs.
+- Cron runs are in UTC (`17 4,14` + `17 9,19`): 06:17 to 21:17 Brussels in summer, one hour earlier in winter. GitHub delays scheduled runs by hours and sometimes skips one: the health job runs on every scheduled and manual run and flags a gap over 15 h.
 - `.local/` (gitignored) holds the workbook, the approved prototype and a venv. Never commit `.xlsx`.

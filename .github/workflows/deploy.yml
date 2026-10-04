@@ -8,7 +8,8 @@ on:
     branches: [main]
   # Four runs a day (UTC). Brussels: 06:17, 11:17, 16:17, 21:17 in summer, one hour
   # earlier in winter, so the first run always lands before the pool opens at 07:00.
-  # The first line also runs the health check (morning and afternoon).
+  # GitHub may delay a scheduled run by hours or skip it, so every scheduled and manual
+  # run also runs the health check, which flags a long gap since the previous run.
   schedule:
     - cron: "17 4,14 * * *"
     - cron: "17 9,19 * * *"
@@ -34,11 +35,11 @@ jobs:
       fetch_ok: ${{ steps.fetch.outputs.ok }}
       parse_ok: ${{ steps.parse.outputs.ok }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.ref }}
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -164,12 +165,12 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # The exact commit produced (or kept) by the update job.
           ref: ${{ needs.update.outputs.sha }}
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -178,31 +179,41 @@ jobs:
           python scripts/stamp_cache_version.py site --extra "$(git rev-parse HEAD)"
           touch site/.nojekyll
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
   # Fails on purpose when something needs attention, so GitHub emails the repo owner
   # (Settings > Notifications > Actions). Also pushes the reason to ntfy when the
   # NTFY_TOPIC secret is set. Never blocks the deploy.
   health:
     needs: update
-    if: always() && (github.event_name == 'workflow_dispatch' || github.event.schedule == '17 4,14 * * *')
+    if: always() && github.event_name != 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
+      actions: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.update.outputs.sha || github.sha }}
 
-      - uses: actions/setup-python@v5
+      - name: Find the previous scheduled run
+        id: prev
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          at="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy.yml/runs?event=schedule&per_page=5" \
+            --jq "[.workflow_runs[] | select(.id != ${GITHUB_RUN_ID})][0].run_started_at // empty" || true)"
+          echo "at=${at}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -211,6 +222,7 @@ jobs:
           python scripts/health_check.py \
             --fetch-ok "${{ needs.update.outputs.fetch_ok || 'false' }}" \
             --parse-ok "${{ needs.update.outputs.parse_ok || 'false' }}" \
+            --prev-run "${{ steps.prev.outputs.at }}" \
             --report "$RUNNER_TEMP/health.txt"
 
       - name: Alert on ntfy

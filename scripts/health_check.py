@@ -5,7 +5,8 @@ Exits 1 (so the GitHub Actions run fails and GitHub emails the repo owner) when:
   - the workbook download or the parse failed in this run,
   - the parser reported a structural problem (skipped sheet, broken order, bad dates),
   - next week's schedule is still missing after the Friday noon deadline (Brussels time),
-  - the source workbook has not changed for more than STALE_DAYS days.
+  - the source workbook has not changed for more than STALE_DAYS days,
+  - the previous scheduled run started more than RUN_GAP_HOURS ago (GitHub delayed or skipped runs).
 
 Writes a one-line reason per problem to --report (used for the ntfy alert).
 """
@@ -21,11 +22,20 @@ TZ = ZoneInfo("Europe/Brussels")
 DEADLINE_WEEKDAY = 4  # Friday
 DEADLINE_HOUR = 12
 STALE_DAYS = 8
+# Runs are planned at most 9 h apart; GitHub often starts them 3 to 4 h late, so a longer gap means a skipped run.
+RUN_GAP_HOURS = 15
 STRUCTURAL = ("skipped", "order broken", "parse error", "not a monday", "far from", "far ahead", "grid has")
 
 
-def check(data: dict | None, now: dt.datetime, fetch_ok: bool, parse_ok: bool) -> list[str]:
+def check(data: dict | None, now: dt.datetime, fetch_ok: bool, parse_ok: bool, prev_run: str | None = None) -> list[str]:
     problems: list[str] = []
+    if prev_run:
+        try:
+            gap = now - dt.datetime.fromisoformat(prev_run.replace("Z", "+00:00"))
+            if gap > dt.timedelta(hours=RUN_GAP_HOURS):
+                problems.append(f"Scheduled runs are late or skipped: the previous one started {gap.total_seconds() / 3600:.0f} h ago ({prev_run}).")
+        except ValueError:
+            pass
     if not fetch_ok:
         problems.append("Workbook download failed (link changed, SharePoint blocked, or not an xlsx).")
     elif not parse_ok:
@@ -66,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--data", default="site/data/schedule.json")
     ap.add_argument("--fetch-ok", default="true")
     ap.add_argument("--parse-ok", default="true")
+    ap.add_argument("--prev-run", help="start time (ISO) of the previous scheduled run, empty if unknown")
     ap.add_argument("--now", help="ISO datetime override, for tests")
     ap.add_argument("--report", help="write problems, one per line, to this file")
     a = ap.parse_args(argv)
@@ -77,7 +88,7 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError):
         data = None
 
-    problems = check(data, now, a.fetch_ok == "true", a.parse_ok == "true")
+    problems = check(data, now, a.fetch_ok == "true", a.parse_ok == "true", a.prev_run or None)
     if a.report:
         with open(a.report, "w", encoding="utf-8") as fh:
             fh.write("\n".join(problems))
