@@ -103,3 +103,4 @@ If users keep seeing an old or broken version after a deploy:
 For a single device: open the site, then in the browser settings clear the site data for
 `jdelsoir.github.io`, or in desktop Chrome use DevTools > Application > Service workers >
 Unregister, then reload.
+
