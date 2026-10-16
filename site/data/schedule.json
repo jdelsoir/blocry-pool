@@ -1,9 +1,9 @@
 {
  "version": 1,
- "generatedAt": "2026-10-12T12:00:29Z",
+ "generatedAt": "2026-10-16T13:57:47Z",
  "source": {
-  "lastModified": "2026-10-12T07:34:33Z",
-  "sheetCount": 76,
+  "lastModified": "2026-10-16T12:51:05Z",
+  "sheetCount": 77,
   "url": "https://csblocry.be/piscines/"
  },
  "weeks": [
@@ -1598,6 +1598,83 @@
        "l50": 2
       }
      ]
+    }
+   ]
+  },
+  {
+   "start": "2026-10-19",
+   "title": "Horaire du 19 au 25 octobre",
+   "sheet": "Semaine du 19 au 25 oct",
+   "days": [
+    {
+     "date": "2026-10-19",
+     "closed": null,
+     "slots": [
+      {
+       "t": "08:30",
+       "l25": 0,
+       "l50": 0,
+       "change": "changement de 8h40 à 9h"
+      }
+     ]
+    },
+    {
+     "date": "2026-10-20",
+     "closed": null,
+     "slots": [
+      {
+       "t": "08:30",
+       "l25": 0,
+       "l50": 0,
+       "change": "changement de 8h40 à 9h"
+      }
+     ]
+    },
+    {
+     "date": "2026-10-21",
+     "closed": null,
+     "slots": [
+      {
+       "t": "08:30",
+       "l25": 0,
+       "l50": 0,
+       "change": "changement de 8h40 à 9h"
+      }
+     ]
+    },
+    {
+     "date": "2026-10-22",
+     "closed": null,
+     "slots": [
+      {
+       "t": "08:30",
+       "l25": 0,
+       "l50": 0,
+       "change": "changement de 8h40 à 9h"
+      }
+     ]
+    },
+    {
+     "date": "2026-10-23",
+     "closed": null,
+     "slots": [
+      {
+       "t": "08:30",
+       "l25": 0,
+       "l50": 0,
+       "change": "changement de 8h40 à 9h"
+      }
+     ]
+    },
+    {
+     "date": "2026-10-24",
+     "closed": null,
+     "slots": []
+    },
+    {
+     "date": "2026-10-25",
+     "closed": null,
+     "slots": []
     }
    ]
   }
