@@ -1,9 +1,9 @@
 {
  "version": 1,
- "generatedAt": "2026-11-03T11:56:21Z",
+ "generatedAt": "2026-11-05T17:24:20Z",
  "source": {
-  "lastModified": "2026-11-03T09:29:19Z",
-  "sheetCount": 79,
+  "lastModified": "2026-11-05T13:59:26Z",
+  "sheetCount": 80,
   "url": "https://csblocry.be/piscines/"
  },
  "weeks": [
@@ -1837,6 +1837,101 @@
        "l50": 2
       }
      ]
+    }
+   ]
+  },
+  {
+   "start": "2026-11-09",
+   "title": "Horaire du 9 au 15 novembre",
+   "sheet": "Semaine du 9 au 15 novembre",
+   "days": [
+    {
+     "date": "2026-11-09",
+     "closed": null,
+     "slots": [
+      {
+       "t": "08:30",
+       "l25": 0,
+       "l50": 0,
+       "change": "changement de 8h40 à 9h"
+      },
+      {
+       "t": "18:30",
+       "l25": 0,
+       "l50": 0,
+       "change": "Changement de 18h30 à 18h45"
+      }
+     ]
+    },
+    {
+     "date": "2026-11-10",
+     "closed": null,
+     "slots": [
+      {
+       "t": "08:30",
+       "l25": 0,
+       "l50": 0,
+       "change": "changement de 8h40 à 9h"
+      }
+     ]
+    },
+    {
+     "date": "2026-11-11",
+     "closed": null,
+     "slots": [
+      {
+       "t": "08:30",
+       "l25": 0,
+       "l50": 0,
+       "change": "changement de 8h40 à 9h"
+      }
+     ]
+    },
+    {
+     "date": "2026-11-12",
+     "closed": null,
+     "slots": [
+      {
+       "t": "08:30",
+       "l25": 0,
+       "l50": 0,
+       "change": "changement de 8h40 à 9h"
+      },
+      {
+       "t": "16:00",
+       "l25": 0,
+       "l50": 0,
+       "change": "changement de configuration de 16h à 16h20"
+      }
+     ]
+    },
+    {
+     "date": "2026-11-13",
+     "closed": null,
+     "slots": [
+      {
+       "t": "08:30",
+       "l25": 0,
+       "l50": 0,
+       "change": "changement de 8h40 à 9h"
+      },
+      {
+       "t": "16:00",
+       "l25": 0,
+       "l50": 0,
+       "change": "changement de configuration de 16h à 16h20"
+      }
+     ]
+    },
+    {
+     "date": "2026-11-14",
+     "closed": null,
+     "slots": []
+    },
+    {
+     "date": "2026-11-15",
+     "closed": null,
+     "slots": []
     }
    ]
   }
