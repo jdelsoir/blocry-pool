@@ -1,8 +1,8 @@
 {
  "version": 1,
- "generatedAt": "2026-11-16T12:46:19Z",
+ "generatedAt": "2026-11-17T13:27:50Z",
  "source": {
-  "lastModified": "2026-11-14T07:43:33Z",
+  "lastModified": "2026-11-17T09:38:36Z",
   "sheetCount": 81,
   "url": "https://csblocry.be/piscines/"
  },
@@ -1440,7 +1440,7 @@
       },
       {
        "t": "19:30",
-       "l25": 2,
+       "l25": 4,
        "l50": 0
       }
      ]
